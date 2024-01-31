@@ -23,3 +23,8 @@ function init_p_cav(graph::HGraph, p0::Float64)
     p0 = fill(p0, graph.N)
     init_p_cav(graph, p0)
 end
+
+
+function sum_product_KSAT()
+    
+end
