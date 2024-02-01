@@ -74,6 +74,22 @@ function comp_pu_KSAT(p_cav::Array{Float64, 3}, graph::HGraph, ch_u_cond::Array{
     return pu
 end
 
+# This function takes a variable node 'node' and a clause 'he' containing that node and
+# constructs a list with all the conditional probabilities 'pu' corresponding to the other
+# clauses that contain 'node'. The clause 'he' is stored in var_2_he_loc[he_index]
+function construct_pu_neighs(node::Int64, he_index::Int64, var_2_he_loc::Vector{Float64}, 
+                             pu::Matrix{Float64}, nodes_in::Vector{Dict{Int64, Inf64}})
+    other_he = var_2_he_loc[1:end .!= he_index]
+    places_in = map(x -> get(x, node, "Node not found in he"), g.nodes_in[other_he])
+    indexes = [i, j in other_he, places_in]
+    pu_neighs = pu[other_he, ]
+end
+
+g = build_ER_HGraph(100, 3, 3)
+other_he = g.var_2_he[2][1:end .!= 1]
+g.nodes_in[other_he]
+places_in = map(x -> get(x, 2, "Node not found in he"), g.nodes_in[other_he])
+indexes = [[i, j] for (i, j) in (other_he, places_in)]
 
 function sum_product_KSAT(pu_lp::Vector{Int64}, pu_lm::Vector{Int64})
    println("a") 

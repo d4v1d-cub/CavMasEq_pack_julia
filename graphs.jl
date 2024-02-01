@@ -87,7 +87,7 @@ function ERHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64)
     if isinteger(M)
         M = Int64(M)
         he_2_var = zeros(Int64, (M, K))
-        var_2_he = fill(Array{Int64, 1}(), N)
+        var_2_he = [Array{Int64, 1}() for _ in 1:N]
         degrees = zeros(Int64, N)
         for he in 1:M
             for i in 1:K
@@ -159,3 +159,5 @@ function import_graph(filein::String)
     end
     return build_HGraph(var_2_he, he_2_var, degrees)
 end
+
+g = build_ER_HGraph(100, 3, 3)
