@@ -43,7 +43,7 @@ end
 
 # This function creates a Random Regular Hypergaph with node connectivity 'c' and factor 
 # node connectivity 'K'. The random seed is controlled by the user
-function RRHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64=1)
+function RRHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64)
     Random.seed!(idum)
     M = N * c / K 
     if isinteger(M)
@@ -72,7 +72,7 @@ end
 
 
 # Builds a random regular hypergraph with parameters N, c, K and random seed 'idum'
-function build_RR_HGraph(N::Int64, c::Int64, K::Int64, idum::Int64=1)
+function build_RR_HGraph(N::Int64, c::Int64, K::Int64, idum::Int64=rand(1:typemax(Int64)))
     var_2_he, he_2_var, degrees = RRHyperGraph(N, c, K, idum)
     var_2_he = slicematrix(var_2_he)             # The matrix is casted into an array of arrays
     return build_HGraph(var_2_he, he_2_var, degrees)
@@ -81,7 +81,7 @@ end
 
 # This function creates an Erdos-Renyi Hypergaph with mean node connectivity 'c' and factor 
 # node connectivity 'K'. The random seed is controlled by the user
-function ERHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64=1)
+function ERHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64)
     Random.seed!(idum)
     M = N * c / K 
     if isinteger(M)
@@ -108,7 +108,7 @@ end
 
 
 # Builds a random regular hypergraph with parameters N, c, K and random seed 'idum'
-function build_ER_HGraph(N::Int64, c::Int64, K::Int64, idum::Int64=1)
+function build_ER_HGraph(N::Int64, c::Int64, K::Int64, idum::Int64=rand(1:typemax(Int64)))
     var_2_he, he_2_var, degrees = ERHyperGraph(N, c, K, idum)
     return build_HGraph(var_2_he, he_2_var, degrees)
 end
