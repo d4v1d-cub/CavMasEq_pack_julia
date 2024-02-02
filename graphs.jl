@@ -159,5 +159,3 @@ function import_graph(filein::String)
     end
     return build_HGraph(var_2_he, he_2_var, degrees)
 end
-
-g = build_ER_HGraph(100, 3, 3)

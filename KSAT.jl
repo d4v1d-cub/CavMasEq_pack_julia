@@ -64,11 +64,11 @@ end
 # ch_u_cond[he, v, ch] is an array that contains, for each hyperedge 'he' and each
 # variable 'v' in that hyperedge, the chains (coded as integers) of the rest 
 # of the variables in the hyperedge that unsatisfy their links.
-function comp_pu_KSAT(p_cav::Array{Float64, 3}, graph::HGraph, ch_u_cond::Array{Int64, 3})
+function comp_pu_KSAT(p_cav::Array{Float64, 3}, graph::HGraph, ch_u_cond::Matrix{Int64})
     pu = zeros(Float64, (graph.M, graph.K))
     for he in 1:graph.M
         for i in 1:graph.K
-            pu[he, i] = p_cav[he, i, ch_u_cond[he, i]]
+            pu[he, i] = p_cav[he, i, ch_u_cond[he, i] + 1]
         end
     end
     return pu
@@ -76,20 +76,16 @@ end
 
 # This function takes a variable node 'node' and a clause 'he' containing that node and
 # constructs a list with all the conditional probabilities 'pu' corresponding to the other
-# clauses that contain 'node'. The clause 'he' is stored in var_2_he_loc[he_index]
-function construct_pu_neighs(node::Int64, he_index::Int64, var_2_he_loc::Vector{Float64}, 
-                             pu::Matrix{Float64}, nodes_in::Vector{Dict{Int64, Inf64}})
+# clauses that contain 'node'. The clause 'he' is the one stored in var_2_he_loc[he_index]
+function construct_pu_neighs(node::Int64, he_index::Int64, var_2_he_loc::Vector{Int64}, 
+                             pu::Matrix{Float64}, nodes_in::Vector{Dict{Int64, Int64}})
     other_he = var_2_he_loc[1:end .!= he_index]
-    places_in = map(x -> get(x, node, "Node not found in he"), g.nodes_in[other_he])
-    indexes = [i, j in other_he, places_in]
-    pu_neighs = pu[other_he, ]
+    places_in = map(x -> get(x, node, "Node not found in he"), nodes_in[other_he])
+    iter = zip(other_he, places_in)
+    pu_neighs = [pu[i, j] for (i, j) in iter]
+    return pu_neighs
 end
 
-g = build_ER_HGraph(100, 3, 3)
-other_he = g.var_2_he[2][1:end .!= 1]
-g.nodes_in[other_he]
-places_in = map(x -> get(x, 2, "Node not found in he"), g.nodes_in[other_he])
-indexes = [[i, j] for (i, j) in (other_he, places_in)]
 
 function sum_product_KSAT(pu_lp::Vector{Int64}, pu_lm::Vector{Int64})
    println("a") 
