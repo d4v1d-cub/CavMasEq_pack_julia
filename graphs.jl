@@ -14,7 +14,9 @@ mutable struct HGraph
     nchains::Vector{Int64}                     # list equal to 2.^{degrees}
     nodes_in::Array{Dict{Int64, Int64}, 1}     # dictionary with key=node_index and val=place_in_he
     nodes_except::Array{Int64, 3}              # this list stores, for each hyperedge 'he' and each 
-                                               # node 'i' in the hyperedge, the other nodes 'he \ i'   
+                                               # node 'i' in the hyperedge, the other nodes 'he \ i' 
+    place_there::Array{Dict{Int64, Int64}, 2}  # for each hyperedge and each variable, dictionary with
+                                               # key = node and value = place in nodes_except[he, var_index]
 end
 
 # Builds a hypergraph from the lists of hyperedges per variable (var_2_he),
@@ -28,16 +30,23 @@ function build_HGraph(var_2_he::Array{Array{Int64, 1}, 1} , he_2_var::Matrix{Int
     nchains = 2 .^ degrees
     nodes_in = Array{Dict{Int64, Int64}, 1}()
     nodes_except = zeros(Int64, (M, K, K-1))
+    place_there = Array{Dict{Int64, Int64}, 2}(undef, (M, K))
     for he in 1:M
         nin_he = Dict{Int64, Int64}()
         for i in 1:K
+            nin_he_exc = Dict{Int64, Int64}()
             nin_he[he_2_var[he, i]] = i
             nodes_except[he, i, :] .= he_2_var[he, 1:end .!= i]
+            for j in eachindex(nodes_except[he, i])
+                nin_he_exc[nodes_except[he, i, j]] = j
+            end
+            place_there[he, i] = nin_he_exc
         end
         push!(nodes_in, nin_he)
     end
 
-    return HGraph(N, M, K, chains_he, var_2_he, he_2_var, degrees, nchains, nodes_in, nodes_except)
+    return HGraph(N, M, K, chains_he, var_2_he, he_2_var, degrees, nchains, nodes_in, 
+                  nodes_except, place_there)
 end
 
 

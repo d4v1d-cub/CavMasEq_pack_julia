@@ -227,7 +227,7 @@ function compute_all_sums(pu::Matrix{Float64},
         all_sums[val, 1, 1] = sum_product_KSAT(pu_lu, pu_ls, ratefunc, rate_args, 0, 0)
         all_sums[val, 2, 1] = sum_product_KSAT(pu_lu, pu_ls, ratefunc, rate_args, 1, 0)
         all_sums[val, 1, 2] = sum_product_KSAT(pu_lu, pu_ls, ratefunc, rate_args, 0, 1)
-        # The triad (val, 1, 1) it is not possible.
+        # The triad (val, 2, 2) it is not possible.
     end    
     
     return all_sums
@@ -239,9 +239,9 @@ end
 # of p_cav. The array 'all_sums' is computed using the function 'compute_all_sums'
 # ch_exc is an integer that codes the combination of the variables in the argument of the
 # probability 'p_cav'. Remember that all p_cav are conditioned to one already unsatisfied link.
-function der_pcav_node_KSAT(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
-                            ch_exc::Int64, ch_exc_unsat::Int64, 
-                            index_in::Int64)
+function der_pcav_contr_node(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
+                             ch_exc::Int64, ch_exc_unsat::Int64, 
+                             index_in::Int64)
     ch_exc_flip = (ch_exc ⊻ (2 ^ (index_in - 1)))  # The ⊻ (xor) operation flips the variable
     val = ((ch_exc >> (index_in - 1)) & 1)         # Takes the value of the variable
     Ea = (ch_exc == ch_exc_unsat)                  # As the variable in the conditional is set 
@@ -253,28 +253,111 @@ function der_pcav_node_KSAT(p_cav::Vector{Float64}, all_sums::Array{Float64, 3},
 end
 
 
-# This function computes the derivatives of all the p_cav that correspond to a clause
-function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Matrix{Float64}, he::Int64, graph::HGraph, 
+# This function computes the part of the derivatives of the p_cav that correspond to
+# the flipping of variable 'node' inside a clause 'he' conditioned on 'cond_node'
+# The result is cumulated in the matrix 'ders'
+function der_pcav_KSAT(p_cav::Vector{Float64}, pu::Matrix{Float64}, he::Int64, 
+    node::Int64, place_node::Int64, ch_exc_unsat::Int64, graph::HGraph, 
+    all_lp::Vector{Vector{Vector{Int64}}}, 
+    all_lm::Vector{Vector{Vector{Int64}}}, 
+    ratefunc::Function, rate_args, ders::Vector{Float64}, nch::Int64)
+    
+    all_sums = compute_all_sums(pu, node, he, graph, all_lp, all_lm, ratefunc, rate_args)
+    for ch_exc in 0:nch-1
+        ders[ch_exc + 1] += der_pcav_contr_node(p_cav, all_sums, ch_exc, ch_exc_unsat, place_node)   
+    end
+    return all_sums  # It returns the sums corresponding to flipping node with fixed values of 'he'
+end
+
+
+# Given the sum-products corresponding to the flipping variable 'i', summed over all the clauses
+# containing 'i' different from a given 'he', this function computes the derivative of the local
+# probability 'probi'. It receives the cavity conditional probability of having 'he' unsatisfied
+# (pu) and the value of the link between 'i' and 'he' (li_he)
+function der_pi_KSAT(probi::Float64, pu::Float64, all_sums::Array{Float64, 3}, 
+                     li_he::Int8)
+    cumul = 0.0
+    for u in 0:1
+        pr = 1 - u - (1 - 2 * u) * pu
+        Ea = u * (li_he == 1)             # 'u' controls the state of the rest of the variables in 'he'
+        # If u = 1, the rest of the variables unsatisfy their links and u=0 otherwise 
+        # However, the clause 'he' is unsat only is 'i' also unsatisfies its link
+        # As 'probi' is defined for si = 0, this happens only if 'li_he=1'
+        Ea_flip = u * (li_he == 0)       # On the other hand, if li_he=0 the clause will be unsatisfied
+        # after flipping 'si'
+        cumul += -all_sums[1, Ea + 1, Ea_flip + 1] * (li_he * pr + (1 - li_he)) * probi + 
+        all_sums[2, Ea_flip + 1, Ea + 1] * ((1 - li_he) * pr + li_he) * (1 - probi)
+        # In the equation, the state of the rest of the variables in 'he' is being 
+    end
+    
+    return cumul
+end
+
+
+# This function computes the all the derivatives related to a node 'node'
+function all_ders_node_KSAT(p_cav::Matrix{Float64}, pu::Matrix{Float64}, node::Int64, graph::HGraph, 
     all_lp::Vector{Vector{Vector{Int64}}}, 
     all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, 
-    rate_args, links::Matrix{Int8})
+    rate_args, links::Matrix{Int8}, ders_pcav::Array{Float64, 3}, ders_pi::Vector{Float64}, 
+    nch::Int64)
     
-    nch = graph.chains_he ÷ 2
-    ders = zeros(Float64, (graph.K, nch))
-    for i in 1:graph.K
-        lvec_rev = 1 .- links[he, 1:end .!= i]  # gives the configuration that unsatisfies every link
-        ch_exc_unsat = digits2int(lvec_rev)    # converting it to an integer
-        for j in 1:graph.K-1
-            node = graph.nodes_except[he,i,j]
-            all_sums = compute_all_sums(pu, node, he, graph, all_lp, all_lm, ratefunc, rate_args)
-            for ch_exc in 0:nch-1
-                ders[i, ch_exc + 1] += der_pcav_node_KSAT(p_cav[i, :], all_sums, ch_exc, 
-                                                         ch_exc_unsat, j)   
-            end
+    all_sums = zeros(Float64, (2, 2, 2))
+
+    for he in graph.var_2_he[node]           # Computing all the derivatives of cavity probabilities 
+        place_in = graph.nodes_in[he][node]  # where 'node' is flipped
+        for j in graph.K - 1
+            node_neigh = graph.nodes_except[he, place_in, j]
+            lvec_rev = 1 .- links[he, 1:end .!= node_neigh]  # gives the configuration that unsatisfies every link
+            ch_exc_unsat = digits2int(lvec_rev)              # converting it to an integer
+            place_neigh = graph.nodes_in[he][node_neigh]     
+            place_in_exc = graph.place_there[he, place_neigh][node] # Gets the index of 'node' in the 
+                                                       # array  graph.nodes_except[he, place_neigh, :]
+            all_sums = der_pcav_KSAT(p_cav[he, place_neigh, :], pu, he, node, place_in_exc, ch_exc_unsat, 
+                          graph, all_lp, all_lm, ratefunc, rate_args, ders_pcav[he, place_neigh, :], nch)   
         end
     end
-    return ders
+
+    he = graph.var_2_he[node][end]
+    place_in = graph.nodes_in[he][node]
+
+
 end
+
+
+# function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Matrix{Float64}, he::Int64, graph::HGraph, 
+#     all_lp::Vector{Vector{Vector{Int64}}}, 
+#     all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, 
+#     rate_args, links::Matrix{Int8})
+    
+#     nch = graph.chains_he ÷ 2
+#     ders = zeros(Float64, (graph.K, nch))
+#     all_sums = zeros(Float64, (2, 2, 2))
+#     for i in 1:graph.K
+#         lvec_rev = 1 .- links[he, 1:end .!= i]  # gives the configuration that unsatisfies every link
+#         ch_exc_unsat = digits2int(lvec_rev)    # converting it to an integer
+#         for j in 1:graph.K-1
+#             node = graph.nodes_except[he,i,j]
+#             all_sums = compute_all_sums(pu, node, he, graph, all_lp, all_lm, ratefunc, rate_args)
+#             for ch_exc in 0:nch-1
+#                 ders[i, ch_exc + 1] += der_pcav_node_KSAT(p_cav[i, :], all_sums, ch_exc, 
+#                                                          ch_exc_unsat, j)   
+#             end
+#         end
+#     end
+#     return ders, all_sums  # It returns also the sums corresponding to the last node (he[K])
+# end
+
+
+# This function computes all the derivatives for cavity conditional probabilities
+function all_ders_pcav_KSAT(p_cav::Array{Float64, 3}, pu::Matrix{Float64}, graph::HGraph, 
+                            all_lp::Vector{Vector{Vector{Int64}}}, 
+                            all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, 
+                            rate_args, links::Matrix{Int8})
+    all_d = zeros(Float64, size(p_cav))
+    all_s = zeros(Float64, (graph.M, 2, 2, 2))
+    nch = graph.chains_he ÷ 2
+end
+
 
 n = 100
 c = 3
@@ -289,5 +372,13 @@ pu = comp_pu_KSAT(p_cav, g1, ch_u_cond)
 g1.K
 
 include("rates.jl")
-der_pcav_KSAT(p_cav[1, :, :], pu, 1, g1, all_lp, all_lm, rate_FMS_KSAT, [1.0, 1.0, g1.K], all_l)
+d, sums_all = der_pcav_KSAT(p_cav[1, :, :], pu, 1, g1, all_lp, all_lm, rate_FMS_KSAT, [1.0, 1.0, g1.K], all_l)
 
+size(p_cav)
+
+
+d = Array{Dict{Int64, Int64}, 2}(undef, 3, 3)
+h = Dict{Int64, Int64}()
+h[0] = 1
+d[1, 1] = h
+d[1, 1][1]
