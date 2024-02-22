@@ -1,6 +1,6 @@
 using Random
 include("graphs.jl")
-include("tools.jl")
+include("general.jl")
 
 # It generates the binary links of K-SAT's boolean formula.
 function gen_links(graph::HGraph, idum::Int64=rand(1:typemax(Int64)))
@@ -75,42 +75,18 @@ function unsat_ch(graph::HGraph, links::Matrix{Int8})
 end
 
 
-# This function initializes the cavity conditional probabilities with a fully 
-# independent initial distribution given by the vector 'p0'
-# This cavity probabilities are conditioned to having an already unsatisfied link
-# because those are the only probabilities that are actually needed in KSAT.
-function init_p_cav_KSAT(graph::HGraph, p0::Vector{Float64})
-    ch_exc = graph.chains_he ÷ 2
-    p_cav = zeros(Float64, (graph.M, graph.K, ch_exc))
-    for he in 1:graph.M
-        for i in 1:graph.K
-            for ch in 0:ch_exc - 1
-                bits = digits(ch, base=2, pad=graph.K-1)
-                p_cav[he, i, ch + 1] = prod(bits + (1 .- 2 * bits) .* p0[graph.nodes_except[he, i, :]])
-            end
-        end
-    end
-    return p_cav
-end
-
-
-# The user can just pass a single float 'p0' and the vector of initial conditions 
-# is assumed to be homogeneous
-function init_p_cav_KSAT(graph::HGraph, p0::Float64)
-    p0 = fill(p0, graph.N)
-    init_p_cav_KSAT(graph, p0)
-end
-
 
 # It computes the conditional cavity probabilities of having unsatisfied hyperedges.
 # ch_u_cond[he, v, ch] is an array that contains, for each hyperedge 'he' and each
 # variable 'v' in that hyperedge, the chains (coded as integers) of the rest 
 # of the variables in the hyperedge that unsatisfy their links.
-function comp_pu_KSAT(p_cav::Array{Float64, 3}, graph::HGraph, ch_u_cond::Matrix{Int64})
-    pu = zeros(Float64, (graph.M, graph.K))
+function comp_pu_KSAT(p_cav::Array{Float64, 4}, graph::HGraph, ch_u_cond::Matrix{Int64})
+    pu = zeros(Float64, (graph.M, 2, graph.K))
     for he in 1:graph.M
         for i in 1:graph.K
-            pu[he, i] = p_cav[he, i, ch_u_cond[he, i] + 1]
+            for s in 1:2
+                pu[he, i] = p_cav[he, i, s, ch_u_cond[he, i] + 1]
+            end
         end
     end
     return pu
@@ -123,9 +99,13 @@ function get_pu_lpm(node::Int64, he_list::Vector{Int64}, nodes_in::Vector{Dict{I
                     pu::Matrix{Float64})
     places_in = map(x -> get(x, node, "Error: Node not found in he"), nodes_in[he_list])
     iter = zip(he_list, places_in)
-    pu_lpm = Vector{Float64}()
-    for (i, j) in iter
-        push!(pu_lpm, pu[i, j])
+    pu_lpm = Matrix{Float64}(undef, 2, length(he_list))
+    counter = 1
+    for (he, j) in iter
+        for s in 1:2
+            pu_lpm[s, counter] = pu[he, s, j]
+        end
+        counter += 1
     end
     return pu_lpm
 end
@@ -136,7 +116,7 @@ end
 # clauses that contain 'node'.
 # The list pu_lp contains all the probabilities that correspond to positive links
 # The list pu_lm contains all the probabilities that correspond to negative links
-function construct_pu_neighs(node::Int64, he::Int64, pu::Matrix{Float64}, 
+function construct_pu_neighs(node::Int64, he::Int64, pu::Array{Float64, 3}, 
                              nodes_in::Vector{Dict{Int64, Int64}}, 
                              all_lp::Vector{Vector{Vector{Int64}}}, 
                              all_lm::Vector{Vector{Vector{Int64}}})
@@ -148,24 +128,6 @@ function construct_pu_neighs(node::Int64, he::Int64, pu::Matrix{Float64},
 end
 
 
-# This function recursively computes a vector fE[k], with k=1,..., c+1
-# fE[k] is the sum of 'c' binary variable constrained to sum exactly k - 1 and weighted
-# with a factorized distribution pu[i], with i = 1,..., c
-function recursive_marginal(pu::Vector{Float64}, c::Int64, k::Int64, fE::Vector{Float64})
-    if k <= c
-        fEnew = zeros(Float64, k + 1)
-        fEnew[1] = (1 - pu[k]) * fE[1]
-        for i in 1:k - 1
-            fEnew[i + 1] = (1 - pu[k]) * fE[i + 1] + pu[k] * fE[i]
-        end
-        fEnew[k + 1] = pu[k] * fE[k]
-        return recursive_marginal(pu, c, k + 1, fEnew)
-    else
-        return fE
-    end
-end
-
-
 # This function computes the sum-product in the CME for K-SAT.
 # The rates depend on the energy for the current value of the variable (Eu)
 # and on the energy after flipping the variable (Es)
@@ -173,16 +135,21 @@ end
 # pu_ls are the probabilities for satisfied links
 # Ea is the state of the origin clause
 # Ea_flip is the state when the spin flips
-function sum_product_KSAT(pu_lu::Vector{Float64}, pu_ls::Vector{Float64}, ratefunc::Function, 
+function sum_product_KSAT(pu_lu::Matrix{Float64}, pu_ls::Matrix{Float64}, ratefunc::Function, 
                           rate_args, Ea::Int, Ea_flip::Int)
-    cu = length(pu_lu)
-    cs = length(pu_ls)
-    fE_u = recursive_marginal(pu_lu, cu, 1, [1.0])  # This corresponds to links
-    fE_s = recursive_marginal(pu_ls, cs, 1, [1.0])
+    cu = size(pu_lu, 2)
+    cs = size(pu_ls, 2)
+    fE_u_given_u = recursive_marginal(pu_lu[2, :], cu, 1, [1.0])  # The currently unsat have an 
+    # unsat condition (s = 2) and come from the clauses that are unsatisfied by the current value
+    # of the variable
+    fE_u_given_s = recursive_marginal(pu_ls[1, :], cs, 1, [1.0])  # The clauses that will be unsat
+    # after flipping are among the rest of the clauses. Their probabilities are conditioned on a 
+    # satisfied link
     cumul = 0.0
     for Eu in 0:cu
         for Es in 0:cs
-            cumul += ratefunc(Eu + Ea, Es + Ea_flip, rate_args...) * fE_u[Eu + 1] * fE_s[Es + 1]
+            cumul += ratefunc(Eu + Ea, Es + Ea_flip, rate_args...) * 
+                     fE_u_given_u[Eu + 1] * fE_u_given_s[Es + 1]
         end
     end
     return cumul
@@ -212,7 +179,7 @@ end
 # When val=2 the roles are inverted.
 # Ea is the value of the clause 'a' inside pcav
 # Ea_flip is the value when si flips
-function compute_all_sums(pu::Matrix{Float64},
+function compute_all_sums(pu::Array{Float64, 3},
                     node::Int64, he::Int64, graph::HGraph, 
                     all_lp::Vector{Vector{Vector{Int64}}}, 
                     all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, 
@@ -238,10 +205,10 @@ end
 # the flipping of the variable indexed as 'index_in' among the variables in the argument
 # of p_cav. The array 'all_sums' is computed using the function 'compute_all_sums'
 # ch_exc is an integer that codes the combination of the variables in the argument of the
-# probability 'p_cav'. Remember that all p_cav are conditioned to one already unsatisfied link.
-function der_pcav_contr_node(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
-                             ch_exc::Int64, ch_exc_unsat::Int64, 
-                             index_in::Int64)
+# probability 'p_cav'. In this case all p_cav are conditioned to one already unsatisfied link.
+function der_pcav_contr_node_unsat(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
+            ch_exc::Int64, ch_exc_unsat::Int64, 
+            index_in::Int64)
     ch_exc_flip = (ch_exc ⊻ (2 ^ (index_in - 1)))  # The ⊻ (xor) operation flips the variable
     val = ((ch_exc >> (index_in - 1)) & 1)         # Takes the value of the variable
     Ea = (ch_exc == ch_exc_unsat)                  # As the variable in the conditional is set 
@@ -253,18 +220,37 @@ function der_pcav_contr_node(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}
 end
 
 
+
+# This function computes one term in the derivative of pcav. It corresponds to
+# the flipping of the variable indexed as 'index_in' among the variables in the argument
+# of p_cav. The array 'all_sums' is computed using the function 'compute_all_sums'
+# ch_exc is an integer that codes the combination of the variables in the argument of the
+# probability 'p_cav'. In this case all p_cav are conditioned to one satisfied link.
+function der_pcav_contr_node_sat(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
+            ch_exc::Int64, index_in::Int64)
+ch_exc_flip = (ch_exc ⊻ (2 ^ (index_in - 1)))  # The ⊻ (xor) operation flips the variable
+val = ((ch_exc >> (index_in - 1)) & 1)         # Takes the value of the variable
+
+return -all_sums[val + 1, 1, 1] * p_cav[ch_exc + 1] + 
+    all_sums[2 - val, 1, 1] * p_cav[ch_exc_flip + 1]
+end
+
+
+
 # This function computes the part of the derivatives of the p_cav that correspond to
 # the flipping of variable 'node' inside a clause 'he' conditioned on 'cond_node'
 # The result is cumulated in the matrix 'ders'
-function der_pcav_KSAT(p_cav::Vector{Float64}, pu::Matrix{Float64}, he::Int64, 
+function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Array{Float64, 3}, he::Int64, 
     node::Int64, place_node::Int64, ch_exc_unsat::Int64, graph::HGraph, 
     all_lp::Vector{Vector{Vector{Int64}}}, 
     all_lm::Vector{Vector{Vector{Int64}}}, 
-    ratefunc::Function, rate_args, ders::Vector{Float64}, nch::Int64)
+    ratefunc::Function, rate_args, ders::Matrix{Float64}, nch::Int64)
     
     all_sums = compute_all_sums(pu, node, he, graph, all_lp, all_lm, ratefunc, rate_args)
     for ch_exc in 0:nch-1
-        ders[ch_exc + 1] += der_pcav_contr_node(p_cav, all_sums, ch_exc, ch_exc_unsat, place_node)   
+        ders[1, ch_exc + 1] += der_pcav_contr_node_sat(p_cav[1, :], all_sums, ch_exc, place_node)
+        ders[2, ch_exc + 1] += der_pcav_contr_node_unsat(p_cav[2, :], all_sums, ch_exc, ch_exc_unsat, 
+                                                         place_node)   
     end
     return all_sums  # It returns the sums corresponding to flipping node with fixed values of 'he'
 end
@@ -274,19 +260,20 @@ end
 # containing 'i' different from a given 'he', this function computes the derivative of the local
 # probability 'probi'. It receives the cavity conditional probability of having 'he' unsatisfied
 # (pu) and the value of the link between 'i' and 'he' (li_he)
-function der_pi_KSAT(probi::Float64, pu::Float64, all_sums::Array{Float64, 3}, 
+function der_pi_KSAT(probi::Float64, pu::Vector{Float64}, all_sums::Array{Float64, 3}, 
                      li_he::Int8)
     cumul = 0.0
-    for u in 0:1
-        pr = 1 - u - (1 - 2 * u) * pu
-        Ea = u * (li_he == 1)             # 'u' controls the state of the rest of the variables in 'he'
-        # If u = 1, the rest of the variables unsatisfy their links and u=0 otherwise 
+    for u_neigh in 0:1
+        pr = 1 - u_neigh - (1 - 2 * u_neigh) * pu[li_he + 1]
+        pr_flip = 1 - u_neigh - (1 - 2 * u_neigh) * pu[2 - li_he]
+        Ea = u_neigh * (li_he == 1)             # 'u_neigh' controls the state of the rest of the variables in 'he'
+        # If u_neigh = 1, the rest of the variables unsatisfy their links and u=0 otherwise 
         # However, the clause 'he' is unsat only is 'i' also unsatisfies its link
         # As 'probi' is defined for si = 0, this happens only if 'li_he=1'
-        Ea_flip = u * (li_he == 0)       # On the other hand, if li_he=0 the clause will be unsatisfied
+        Ea_flip = u_neigh * (li_he == 0)       # On the other hand, if li_he=0 the clause will be unsatisfied
         # after flipping 'si'
-        cumul += -all_sums[1, Ea + 1, Ea_flip + 1] * (li_he * pr + (1 - li_he)) * probi + 
-        all_sums[2, Ea_flip + 1, Ea + 1] * ((1 - li_he) * pr + li_he) * (1 - probi)
+        cumul += -all_sums[1, Ea + 1, Ea_flip + 1] * pr * probi + 
+        all_sums[2, Ea_flip + 1, Ea + 1] * pr_flip * (1 - probi)
         # In the equation, the state of the rest of the variables in 'he' is being 
     end
     
