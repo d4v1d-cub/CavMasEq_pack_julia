@@ -158,16 +158,16 @@ end
 
 # This function computes the sum-product in the CME for K-SAT.
 # The rates depend only on the energy for the current value of the variable (Eu)
-function sum_product_KSAT(pu_lu::Vector{Float64}, ratefunc::Function, 
-                          rate_args, Ea::Int)
-    cu = length(pu_lu)
-    fE_u = recursive_marginal(pu_lu, cu, 1, [1.0])
-    cumul = 0.0
-    for Eu in 0:cu
-        cumul += ratefunc(Eu + Ea, rate_args...) * fE_u[Eu]
-    end
-    return cumul
-end
+# function sum_product_KSAT(pu_lu::Vector{Float64}, ratefunc::Function, 
+#                           rate_args, Ea::Int)
+#     cu = length(pu_lu)
+#     fE_u = recursive_marginal(pu_lu, cu, 1, [1.0])
+#     cumul = 0.0
+#     for Eu in 0:cu
+#         cumul += ratefunc(Eu + Ea, rate_args...) * fE_u[Eu]
+#     end
+#     return cumul
+# end
 
 
 # This function gives all sums needed in the computation of the derivative of the pcav
