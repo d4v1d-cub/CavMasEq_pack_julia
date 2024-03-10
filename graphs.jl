@@ -1,23 +1,23 @@
 using Random
 
-include("tools.jl")
+include("general.jl")
 
 mutable struct HGraph
-# This structure holds the hypergraph information
-    N::Int64                                   # number of variable nodes
-    M::Int64                                   # number of hyperedges
-    K::Int64                                   # number of nodes in each hyperedge
-    chains_he::Int64                           # storing 2^K in memory will be useful
-    var_2_he::Array{Array{Int64, 1}, 1}        # list of hyperedges for each variable
-    he_2_var::Matrix{Int64}                    # list of variables per hyperedge
-    degrees::Vector{Int64}                     # list of variable nodes' degrees
-    nchains::Vector{Int64}                     # list equal to 2.^{degrees}
-    nodes_in::Array{Dict{Int64, Int64}, 1}     # dictionary with key=node_index and val=place_in_he
-    nodes_except::Array{Int64, 3}              # this list stores, for each hyperedge 'he' and each 
-                                               # node 'i' in the hyperedge, the other nodes 'he \ i' 
-    place_there::Array{Dict{Int64, Int64}, 2}  # for each hyperedge and each variable, dictionary with
-                                               # key = node and value = place in nodes_except[he, var_index]
-end
+    # This structure holds the hypergraph information
+        N::Int64                                   # number of variable nodes
+        M::Int64                                   # number of hyperedges
+        K::Int64                                   # number of nodes in each hyperedge
+        chains_he::Int64                           # storing 2^K in memory will be useful
+        var_2_he::Array{Array{Int64, 1}, 1}        # list of hyperedges for each variable
+        he_2_var::Matrix{Int64}                    # list of variables per hyperedge
+        degrees::Vector{Int64}                     # list of variable nodes' degrees
+        nchains::Vector{Int64}                     # list equal to 2.^{degrees}
+        nodes_in::Array{Dict{Int64, Int64}, 1}     # dictionary with key=node_index and val=place_in_he
+        nodes_except::Array{Int64, 3}              # this list stores, for each hyperedge 'he' and each 
+                                                   # node 'i' in the hyperedge, the other nodes 'he \ i' 
+        place_there::Array{Dict{Int64, Int64}, 2}  # for each hyperedge and each variable, dictionary with
+                                                   # key = node and value = place in nodes_except[he, var_index]
+    end
 
 # Builds a hypergraph from the lists of hyperedges per variable (var_2_he),
 # variables per hyperedge (he_2_var) and the list of variable nodes' degrees
