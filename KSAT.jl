@@ -1,6 +1,7 @@
 using Random
 include("graphs.jl")
 include("general.jl")
+include("diff_eqs_base.jl")
 
 # It generates the binary links of K-SAT's boolean formula.
 function gen_links(graph::HGraph, idum::Int64=rand(1:typemax(Int64)))
@@ -124,8 +125,8 @@ end
 # Ea_flip is the state when the spin flips
 function sum_product_KSAT(pu_lu::Vector{Float64}, pu_ls::Vector{Float64}, ratefunc::Function, 
                           rate_args, Ea::Int, Ea_flip::Int)
-    cu = size(pu_lu, 2)
-    cs = size(pu_ls, 2)
+    cu = length(pu_lu)
+    cs = length(pu_ls)
     fE_u_given_u = recursive_marginal(pu_lu, cu, 1, [1.0])  # The currently unsat have an 
     # unsat condition (s = 2) and come from the clauses that are unsatisfied by the current value
     # of the variable
@@ -232,7 +233,9 @@ function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Array{Float64, 3}, he::Int64,
         ders[2, ch_exc + 1] += der_pcav_contr_node_unsat(p_cav[2, :], all_sums, ch_exc, ch_exc_unsat, 
                                                          place_node)   
     end
-    return all_sums  # It returns the sums corresponding to flipping node with fixed values of 'he'
+    return all_sums, ders
+    # It returns the sums corresponding to flipping node with fixed values of 'he' and the 
+    # computed derivatives
 end
 
 
@@ -277,15 +280,19 @@ function all_ders_node_KSAT(p_cav::Array{Float64, 4}, probi::Float64,
             place_neigh = graph.nodes_in[he][node_neigh]     
             place_in_exc = graph.place_there[he, place_neigh][node] # Gets the index of 'node' in the 
                                                        # array  graph.nodes_except[he, place_neigh, :]
-            all_sums = der_pcav_KSAT(p_cav[he, place_neigh, :, :], pu, he, node, place_in_exc, ch_exc_unsat, 
-                          graph, all_lp, all_lm, ratefunc, rate_args, ders_pcav[he, place_neigh, :, :], nch)   
+            all_sums, ders_pcav[he, place_neigh, :, :] = 
+                der_pcav_KSAT(p_cav[he, place_neigh, :, :], pu, he, node, place_in_exc, ch_exc_unsat, 
+                graph, all_lp, all_lm, ratefunc, rate_args, ders_pcav[he, place_neigh, :, :], nch)   
         end
     end
 
-    he = graph.var_2_he[node][end]
-    place_in = graph.nodes_in[he][node]
-    return der_pi_KSAT(probi, pu[he, node], all_sums, links[he, node])
-
+    if length(graph.var_2_he[node]) > 0
+        he = graph.var_2_he[node][end]
+        place_in = graph.nodes_in[he][node]
+        return der_pi_KSAT(probi, pu[he, place_in, :], all_sums, links[he, place_in])
+    else
+        return 0
+    end
 end
 
 
@@ -308,23 +315,21 @@ end
 n = 100
 c = 3
 K = 3
+p0 = 0.5
+
 g1 = build_ER_HGraph(n, c, K)
 all_l = gen_links(g1)
 all_lp, all_lm = all_lpm(g1, all_l)
 
-ch_u_cond = unsat_ch(g1, all_l)
-p_cav = init_p_cav_KSAT(g1, 0.5)
+ch_u, ch_u_cond = unsat_ch(g1, all_l)
+p_cav = init_p_cav(g1, p0)
 pu = comp_pu_KSAT(p_cav, g1, ch_u_cond)
-g1.K
+
+p_i = fill(p0, g1.N)
 
 include("rates.jl")
-d, sums_all = der_pcav_KSAT(p_cav[1, :, :], pu, 1, g1, all_lp, all_lm, rate_FMS_KSAT, [1.0, 1.0, g1.K], all_l)
-
-size(p_cav)
-
-
-d = Array{Dict{Int64, Int64}, 2}(undef, 3, 3)
-h = Dict{Int64, Int64}()
-h[0] = 1
-d[1, 1] = h
-d[1, 1][1]
+rf = rate_FMS_KSAT
+rargs = [1.0, 1.0, g1.K]
+d_pc, d_pi = all_ders_CME_KSAT(p_cav, p_i, pu, g1, all_lp, all_lm, rf, 
+                               rargs, all_l)
+d_pc[2, 2, 1, :]

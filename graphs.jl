@@ -37,7 +37,7 @@ function build_HGraph(var_2_he::Array{Array{Int64, 1}, 1} , he_2_var::Matrix{Int
             nin_he_exc = Dict{Int64, Int64}()
             nin_he[he_2_var[he, i]] = i
             nodes_except[he, i, :] .= he_2_var[he, 1:end .!= i]
-            for j in eachindex(nodes_except[he, i])
+            for j in eachindex(nodes_except[he, i, :])
                 nin_he_exc[nodes_except[he, i, j]] = j
             end
             place_there[he, i] = nin_he_exc
