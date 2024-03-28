@@ -273,11 +273,11 @@ function all_ders_node_KSAT(p_cav::Array{Float64, 4}, probi::Float64,
 
     for he in graph.var_2_he[node]           # Computing all the derivatives of cavity probabilities 
         place_in = graph.nodes_in[he][node]  # where 'node' is flipped
-        for j in graph.K - 1
+        for j in 1:graph.K - 1
             node_neigh = graph.nodes_except[he, place_in, j]
-            lvec_rev = 1 .- links[he, 1:end .!= node_neigh]  # gives the configuration that unsatisfies every link
+            place_neigh = graph.nodes_in[he][node_neigh]   
+            lvec_rev = 1 .- links[he, 1:end .!= place_neigh]  # gives the configuration that unsatisfies every link
             ch_exc_unsat = digits2int(lvec_rev)              # converting it to an integer
-            place_neigh = graph.nodes_in[he][node_neigh]     
             place_in_exc = graph.place_there[he, place_neigh][node] # Gets the index of 'node' in the 
                                                        # array  graph.nodes_except[he, place_neigh, :]
             all_sums, ders_pcav[he, place_neigh, :, :] = 
@@ -317,8 +317,8 @@ c = 3
 K = 3
 p0 = 0.5
 
-g1 = build_ER_HGraph(n, c, K)
-all_l = gen_links(g1)
+g1 = build_ER_HGraph(n, c, K, 1)
+all_l = gen_links(g1, 1)
 all_lp, all_lm = all_lpm(g1, all_l)
 
 ch_u, ch_u_cond = unsat_ch(g1, all_l)
@@ -332,4 +332,6 @@ rf = rate_FMS_KSAT
 rargs = [1.0, 1.0, g1.K]
 d_pc, d_pi = all_ders_CME_KSAT(p_cav, p_i, pu, g1, all_lp, all_lm, rf, 
                                rargs, all_l)
-d_pc[2, 2, 1, :]
+d_pc[1, 1, 1, :]
+
+g1.he_2_var[1, 3]
