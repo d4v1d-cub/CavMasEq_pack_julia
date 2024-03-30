@@ -1,5 +1,4 @@
 using Random
-
 include("general.jl")
 
 mutable struct HGraph
@@ -17,7 +16,7 @@ mutable struct HGraph
                                                    # node 'i' in the hyperedge, the other nodes 'he \ i' 
         place_there::Array{Dict{Int64, Int64}, 2}  # for each hyperedge and each variable, dictionary with
                                                    # key = node and value = place in nodes_except[he, var_index]
-    end
+end
 
 # Builds a hypergraph from the lists of hyperedges per variable (var_2_he),
 # variables per hyperedge (he_2_var) and the list of variable nodes' degrees

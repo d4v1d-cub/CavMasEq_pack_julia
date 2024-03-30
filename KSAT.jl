@@ -267,7 +267,7 @@ end
 function all_ders_node_KSAT(p_cav::Array{Float64, 4}, probi::Float64, 
     pu::Array{Float64, 3}, node::Int64, graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, 
     all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, rate_args, 
-    links::Matrix{Int8}, ders_pcav::Array{Float64, 4}, nch::Int64)
+    links::Matrix{Int8}, ders_pcav::Array{Float64, 4}, nch::Int64, ch_u_cond::Matrix{Int64})
     
     all_sums = zeros(Float64, (2, 2, 2))
 
@@ -276,8 +276,8 @@ function all_ders_node_KSAT(p_cav::Array{Float64, 4}, probi::Float64,
         for j in 1:graph.K - 1
             node_neigh = graph.nodes_except[he, place_in, j]
             place_neigh = graph.nodes_in[he][node_neigh]   
-            lvec_rev = 1 .- links[he, 1:end .!= place_neigh]  # gives the configuration that unsatisfies every link
-            ch_exc_unsat = digits2int(lvec_rev)              # converting it to an integer
+            ch_exc_unsat = ch_u_cond[he, place_neigh]  # gives the configuration that unsatisfies every link
+                                                       # converting it to an integer
             place_in_exc = graph.place_there[he, place_neigh][node] # Gets the index of 'node' in the 
                                                        # array  graph.nodes_except[he, place_neigh, :]
             all_sums, ders_pcav[he, place_neigh, :, :] = 
@@ -299,39 +299,14 @@ end
 # This function computes all the derivatives for the CME in the K-SAT
 function all_ders_CME_KSAT(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu::Array{Float64, 3}, 
     graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
-    ratefunc::Function, rate_args, links::Matrix{Int8})
+    ratefunc::Function, rate_args, links::Matrix{Int8}, ch_u_cond::Matrix{Int64})
     
     d_pcav = zeros(Float64, size(p_cav))
     d_node = zeros(Float64, size(probi))
     nch = graph.chains_he ÷ 2
     for node in 1:graph.N
         d_node[node] = all_ders_node_KSAT(p_cav, probi[node], pu, node, graph, all_lp, 
-                                          all_lm, ratefunc, rate_args, links, d_pcav, nch)
+                                          all_lm, ratefunc, rate_args, links, d_pcav, nch, ch_u_cond)
     end
     return d_pcav, d_node
 end
-
-
-n = 100
-c = 3
-K = 3
-p0 = 0.5
-
-g1 = build_ER_HGraph(n, c, K, 1)
-all_l = gen_links(g1, 1)
-all_lp, all_lm = all_lpm(g1, all_l)
-
-ch_u, ch_u_cond = unsat_ch(g1, all_l)
-p_cav = init_p_cav(g1, p0)
-pu = comp_pu_KSAT(p_cav, g1, ch_u_cond)
-
-p_i = fill(p0, g1.N)
-
-include("rates.jl")
-rf = rate_FMS_KSAT
-rargs = [1.0, 1.0, g1.K]
-d_pc, d_pi = all_ders_CME_KSAT(p_cav, p_i, pu, g1, all_lp, all_lm, rf, 
-                               rargs, all_l)
-d_pc[1, 1, 1, :]
-
-g1.he_2_var[1, 3]
