@@ -1,5 +1,6 @@
-using Random
-include("general.jl")
+# This script contains all the functions related with the structure of the underlying 
+# interactions' hypergraph 
+
 
 mutable struct HGraph
     # This structure holds the hypergraph information
@@ -17,6 +18,7 @@ mutable struct HGraph
         place_there::Array{Dict{Int64, Int64}, 2}  # for each hyperedge and each variable, dictionary with
                                                    # key = node and value = place in nodes_except[he, var_index]
 end
+
 
 # Builds a hypergraph from the lists of hyperedges per variable (var_2_he),
 # variables per hyperedge (he_2_var) and the list of variable nodes' degrees

@@ -1,3 +1,5 @@
+# This script contains some general functions that will be used in several other modules
+
 # Transforms a Matrix into an Array of Arrays
 function slicematrix(A::AbstractMatrix)
     return [c[:] for c in eachcol(A)]

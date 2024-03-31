@@ -1,7 +1,5 @@
-using Random
-include("graphs.jl")
-include("general.jl")
-include("diff_eqs_base.jl")
+# This script contains all the functions needed to compute the derivatives 
+# in the integration of the CME on the K-SAT model
 
 # It generates the binary links of K-SAT's boolean formula.
 function gen_links(graph::HGraph, idum::Int64=rand(1:typemax(Int64)))
