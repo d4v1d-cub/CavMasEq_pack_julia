@@ -15,7 +15,7 @@ function ener(graph::HGraph, probi::Vector{Float64}, pu::Array{Float64, 3}, ch_u
     e = 0.0
     for he in 1:graph.M
         node = graph.he_2_var[he, 1]
-        bit_node = ch_u & 1
+        bit_node = ch_u[he] & 1
         e += (bit_node + (1 - 2 * bit_node) * probi[node]) * pu[he, 1, 2]
     end
     return e
@@ -33,7 +33,7 @@ end
 
 
 # Each rate function needs some specific arguments. The general form of these functions 
-function build_args_rate_FMS(graph::HGraph, st::State, ch_u::Matrix{Int64}, T::Float64)
+function build_args_rate_FMS(graph::HGraph, st::State, ch_u::Vector{Int64}, T::Float64)
     avE = ener(graph, st.probi, st.pu, ch_u)
     return T, avE, graph.K
 end
