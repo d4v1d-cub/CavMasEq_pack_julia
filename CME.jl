@@ -1,5 +1,5 @@
 using Random
-using OrdinaryDiffEq, ProgressLogging
+using OrdinaryDiffEq, ProgressLogging, DiffEqCallbacks
 
 include("./general.jl")
 include("./graphs.jl")
@@ -36,7 +36,7 @@ end
 
 # This function computes the derivative of the probabilities and feeds the julia's ODE integrator
 function fder_KSAT(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
-    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, len_cav = p
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, len_cav, efinal = p
     # These are the parameters of the integration
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
     probi = u[len_cav + 1:len_cav + graph.N]
@@ -58,25 +58,52 @@ function fder_KSAT(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
 end
 
 
+function save_ener(u, t, integrator)
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build,
+               len_cav, efinal = integrator.p
+    p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
+    probi = u[len_cav + 1:len_cav + graph.N]
+    pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    return ener(graph, probi, pu, ch_u)
+end
+
+function stopcond(u, t, integrator)
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, 
+              len_cav, efinal = integrator.p
+    p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
+    probi = u[len_cav + 1:len_cav + graph.N]
+    pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    return ener(graph, probi, pu, ch_u) - efinal
+end
+
 # This function integrates the CME's equations for a specific algorithm (given by ratefunc)
 # and some boolean formula (given by graph and links)
 function CME_KSAT(graph::HGraph, links::Matrix{Int8}, p0::Float64, ratefunc::Function, 
                   rargs_cst, rarg_build::Function, method, tspan::Vector{Float64}, 
-                  t_save::Vector{Float64})
+                  t_save::Vector{Float64}, efinal::Float64)
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
     p_cav = init_p_cav(graph, p0)
-    probi = fill(p0, g1.N)
+    probi = fill(p0, graph.N)
     len_cav = length(p_cav)
-    params = graph, all_lp, all_lm, links, ch_u, ch_u_cond, ratefunc, rargs_cst, rarg_build, len_cav
+    params = graph, all_lp, all_lm, links, ch_u, ch_u_cond, ratefunc, rargs_cst, rarg_build, len_cav, 
+             efinal
     u0 = vcat(reshape(p_cav, len_cav), probi)
     prob = ODEProblem(fder_KSAT, u0, tspan, params)
-    sol = solve(prob, method(), progress=true, saveat=t_save)
-    return sol
+
+    saved_eners = SavedValues(Float64, Float64)
+    cb_ener = SavingCallback(save_ener, saved_eners, saveat=t_save)
+    affect!(integrator) = terminate!(integrator)
+    cb_stop = ContinuousCallback(stopcond, affect!)
+
+    cbs = CallbackSet(cb_ener, cb_stop)
+
+    sol = solve(prob, method(), progress=true, callback=cbs)
+    return sol, saved_eners
 end
 
 
-n = 10000
+n = 100
 alpha = 4
 K = 3
 c = K * alpha
@@ -84,20 +111,16 @@ p0 = 0.5
 
 g1 = build_ER_HGraph(n, c, K, 1)
 all_l = gen_links(g1, 1)
-# all_lp, all_lm = all_lpm(g1, all_l)
 
-# ch_u, ch_u_cond = unsat_ch(g1, all_l)
-# p_cav = init_p_cav(g1, p0)
-# pu = comp_pu_KSAT(p_cav, g1, ch_u_cond)
-
-# p_i = fill(p0, g1.N)
-
+eta = 1.0
 rf = rate_FMS_KSAT
-rargs = [1.0]
-# d_pc, d_pi = all_ders_CME_KSAT(p_cav, p_i, pu, g1, all_lp, all_lm, rf, 
-#                                rargs, all_l, ch_u_cond)
+rargs = [eta]
 
 tspan = [0.0, 1.0]
 method = Tsit5
-t_save = collect(0:0.1:1)
-answ = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save)
+t_save = collect(0.0:0.1:1.0)
+
+efinal = 100.0
+
+answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
+e_vals.saveval

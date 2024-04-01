@@ -22,18 +22,18 @@ function ener(graph::HGraph, probi::Vector{Float64}, pu::Array{Float64, 3}, ch_u
 end
 
 # This is the rate of FMS algorithm for KSAT
-function rate_FMS_KSAT(Ep::Int64, Em::Int64, T::Float64, avE::Float64, K::Number)
+function rate_FMS_KSAT(Ep::Int64, Em::Int64, eta::Float64, avE::Float64, K::Number, N::Int64)
     dE = Em - Ep
     if dE > 0
-        return Ep / K / avE * exp(-dE / T)
+        return Ep * N / K / avE * eta ^ dE
     else
-        return Ep / K / avE
+        return Ep * N / K / avE
     end
 end
 
 
 # Each rate function needs some specific arguments. The general form of these functions 
-function build_args_rate_FMS(graph::HGraph, st::State, ch_u::Vector{Int64}, T::Float64)
+function build_args_rate_FMS(graph::HGraph, st::State, ch_u::Vector{Int64}, eta::Float64)
     avE = ener(graph, st.probi, st.pu, ch_u)
-    return T, avE, graph.K
+    return eta, avE, graph.K, graph.N
 end
