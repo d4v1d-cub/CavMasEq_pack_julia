@@ -5,6 +5,7 @@ include("./general.jl")
 include("./graphs.jl")
 include("./rates.jl")
 include("./KSAT.jl")
+include("./export_results.jl")
 
 # This function initializes the cavity conditional probabilities with a fully 
 # independent initial distribution given by the vector 'p0'.
@@ -104,7 +105,7 @@ end
 
 
 n = 100
-alpha = 4
+alpha = 2
 K = 3
 c = K * alpha
 p0 = 0.5
@@ -113,14 +114,25 @@ g1 = build_ER_HGraph(n, c, K, 1)
 all_l = gen_links(g1, 1)
 
 eta = 1.0
+alg_str = "FMS"
 rf = rate_FMS_KSAT
 rargs = [eta]
 
-tspan = [0.0, 1.0]
-method = Tsit5
-t_save = collect(0.0:0.1:1.0)
+t0 = 0.0
+tlim = 1.0
+dt_sample = 0.1
 
-efinal = 100.0
+tspan = [t0, tlim]
+method = Tsit5
+t_save = collect(t0:dt_sample:tlim)
+
+eth = 1e-6
+efinal = eth * g1.N
 
 answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
-e_vals.saveval
+
+fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
+           string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
+           "_tmax_" * string(tlim) * "_dts_" * string(dt_sample) * "_eth_" * string(eth) * ".txt"
+
+print_ener(e_vals, fileener)
