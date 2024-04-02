@@ -104,7 +104,7 @@ function CME_KSAT(graph::HGraph, links::Matrix{Int8}, p0::Float64, ratefunc::Fun
 end
 
 
-n = 100
+n = 1000
 alpha = 2
 K = 3
 c = K * alpha
@@ -130,8 +130,6 @@ eth = 1e-6
 efinal = eth * g1.N
 
 answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
-
-e_vals
 
 fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
