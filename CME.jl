@@ -1,6 +1,8 @@
 using Random
 using OrdinaryDiffEq, ProgressLogging, DiffEqCallbacks
 
+println("Packages loaded")
+
 include("./general.jl")
 include("./graphs.jl")
 include("./rates.jl")
@@ -107,7 +109,7 @@ end
 
 
 n = parse(Int64, ARGS[1])
-alpha = parse(Float64, ARGS[2])
+alpha = parse(Int64, ARGS[2])
 K = 3
 c = K * alpha
 p0 = 0.5
@@ -131,6 +133,8 @@ t_save = collect(t0:dt_sample:tlim)
 eth = 1e-4
 efinal = eth * g1.N
 
+println("Running integration")
+
 answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
 
 fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
@@ -138,3 +142,5 @@ fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alp
            "_tmax_" * string(tlim) * "_dts_" * string(dt_sample) * "_eth_" * string(eth) * ".txt"
 
 print_ener(e_vals, fileener)
+
+println("Integration finished")
