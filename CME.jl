@@ -65,7 +65,9 @@ function save_ener(u, t, integrator)
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
     probi = u[len_cav + 1:len_cav + graph.N]
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
-    return ener(graph, probi, pu, ch_u)
+    e = ener(graph, probi, pu, ch_u)
+    println(t, "\t", e, "\tdone")
+    return e
 end
 
 function stopcond(u, t, integrator)
@@ -104,8 +106,8 @@ function CME_KSAT(graph::HGraph, links::Matrix{Int8}, p0::Float64, ratefunc::Fun
 end
 
 
-n = 1000
-alpha = 2
+n = parse(Int64, ARGS[1])
+alpha = parse(Float64, ARGS[2])
 K = 3
 c = K * alpha
 p0 = 0.5
@@ -126,7 +128,7 @@ tspan = [t0, tlim]
 method = Tsit5
 t_save = collect(t0:dt_sample:tlim)
 
-eth = 1e-6
+eth = 1e-4
 efinal = eth * g1.N
 
 answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
