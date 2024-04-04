@@ -93,9 +93,9 @@ end
 # node connectivity 'K'. The random seed is controlled by the user
 function ERHyperGraph(N::Int64, c::Float64, K::Int64, idum::Int64)
     Random.seed!(idum)
-    M = Int(N * c / K)
-    if isinteger(M)
-        M = Int64(M)
+    prod = Int(round(N * c))
+    if prod % K == 0
+        M = Int64(prod / K)
         he_2_var = zeros(Int64, (M, K))
         var_2_he = [Array{Int64, 1}() for _ in 1:N]
         degrees = zeros(Int64, N)
