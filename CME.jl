@@ -130,7 +130,7 @@ tspan = [t0, tlim]
 method = VCAB4
 t_save = collect(t0:dt_sample:tlim)
 
-eth = 1e-4
+eth = 1e-6
 efinal = eth * g1.N
 
 println("Running integration")
