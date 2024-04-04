@@ -91,9 +91,9 @@ end
 
 # This function creates an Erdos-Renyi Hypergaph with mean node connectivity 'c' and factor 
 # node connectivity 'K'. The random seed is controlled by the user
-function ERHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64)
+function ERHyperGraph(N::Int64, c::Float64, K::Int64, idum::Int64)
     Random.seed!(idum)
-    M = N * c / K 
+    M = Int(N * c / K)
     if isinteger(M)
         M = Int64(M)
         he_2_var = zeros(Int64, (M, K))

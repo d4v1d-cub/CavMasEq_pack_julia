@@ -109,7 +109,7 @@ end
 
 
 n = parse(Int64, ARGS[1])
-alpha = parse(Int64, ARGS[2])
+alpha = parse(Float64, ARGS[2])
 K = 3
 c = K * alpha
 p0 = 0.5
