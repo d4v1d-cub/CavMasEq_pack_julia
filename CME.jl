@@ -85,7 +85,7 @@ end
 # and some boolean formula (given by graph and links)
 function CME_KSAT(graph::HGraph, links::Matrix{Int8}, p0::Float64, ratefunc::Function, 
                   rargs_cst, rarg_build::Function, method, tspan::Vector{Float64}, 
-                  t_save::Vector{Float64}, efinal::Float64)
+                  efinal::Float64)
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
     p_cav = init_p_cav(graph, p0)
@@ -97,7 +97,7 @@ function CME_KSAT(graph::HGraph, links::Matrix{Int8}, p0::Float64, ratefunc::Fun
     prob = ODEProblem(fder_KSAT, u0, tspan, params)
 
     saved_eners = SavedValues(Float64, Float64)
-    cb_ener = SavingCallback(save_ener, saved_eners, saveat=t_save)
+    cb_ener = SavingCallback(save_ener, saved_eners)
     affect!(integrator) = terminate!(integrator)
     cb_stop = ContinuousCallback(stopcond, affect!)
 
@@ -127,7 +127,7 @@ tlim = 1.0
 dt_sample = 0.1
 
 tspan = [t0, tlim]
-method = Tsit5
+method = VCAB4
 t_save = collect(t0:dt_sample:tlim)
 
 eth = 1e-4
@@ -135,7 +135,7 @@ efinal = eth * g1.N
 
 println("Running integration")
 
-answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, t_save, efinal)
+answ, e_vals = CME_KSAT(g1, all_l, p0, rf, rargs, build_args_rate_FMS, method, tspan, efinal)
 
 fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
