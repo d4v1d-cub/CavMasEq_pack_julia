@@ -118,7 +118,7 @@ end
 
 
 # Builds a random regular hypergraph with parameters N, c, K and random seed 'idum'
-function build_ER_HGraph(N::Int64, c::Int64, K::Int64, idum::Int64=rand(1:typemax(Int64)))
+function build_ER_HGraph(N::Int64, c::Float64, K::Int64, idum::Int64=rand(1:typemax(Int64)))
     var_2_he, he_2_var, degrees = ERHyperGraph(N, c, K, idum)
     return build_HGraph(var_2_he, he_2_var, degrees)
 end
