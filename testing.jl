@@ -11,6 +11,7 @@ alpha = 2.3
 K = 3
 c = K * alpha
 p0 = 0.5
+seed = 1
 
 g1 = build_ER_HGraph(n, c, K, 1)
 all_l = gen_links(g1, 1)
@@ -21,7 +22,7 @@ rf = rate_FMS_KSAT
 rargs = [eta]
 
 t0 = 0.0
-tlim = 1.0
+tlim = 0.2
 
 tspan = [t0, tlim]
 
@@ -29,7 +30,11 @@ eth = 1e-6
 
 println("Running integration")
 
-answ, e_vals = CME_KSAT(rf, rargs, build_args_rate_FMS, graph=g1, links=all_l, tspan=[t0, tlim])
+answ, e_vals = CME_KSAT(rf, rargs, build_args_rate_FMS, N=n, K=K, alpha=alpha, 
+                        seed_g=seed, seed_l=seed, tspan=[t0, tlim])
+
+answ, e_vals = CME_KSAT(rf, rargs, build_args_rate_FMS, 
+                        tspan=[t0, tlim])
 
 fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 

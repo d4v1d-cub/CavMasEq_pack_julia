@@ -169,3 +169,21 @@ function import_graph(filein::String)
     end
     return build_HGraph(var_2_he, he_2_var, degrees)
 end
+
+
+function build_empty_graph()
+    var_2_he = Array{Array{Int64, 1}, 1}()
+    he_2_var = Matrix{Int64}(undef, 0, 0)
+    degrees = Vector{Int64}()
+    N = 0
+    M = 0
+    K = 0
+    chains_he = 0
+    nchains = Vector{Int64}()
+    nodes_in = Array{Dict{Int64, Int64}, 1}()
+    nodes_except = Array{Int64, 3}(undef, (0, 0, 0))
+    place_there = Array{Dict{Int64, Int64}, 2}(undef, (0, 0))
+
+    return HGraph(N, M, K, chains_he, var_2_he, he_2_var, degrees, nchains, nodes_in, 
+                  nodes_except, place_there)
+end
