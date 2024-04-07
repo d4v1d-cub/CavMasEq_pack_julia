@@ -85,7 +85,7 @@ end
 # and some boolean formula (given by graph and links)
 function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function, 
                        graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
-                       method, eth::Float64)
+                       method, eth::Float64, cbs_save::CallbackSet)
     efinal = eth * graph.N
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
@@ -97,15 +97,13 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
     u0 = vcat(reshape(p_cav, len_cav), probi)
     prob = ODEProblem(fder_KSAT, u0, tspan, params)
 
-    saved_eners = SavedValues(Float64, Float64)
-    cb_ener = SavingCallback(save_ener, saved_eners)
     affect!(integrator) = terminate!(integrator)
     cb_stop = ContinuousCallback(stopcond, affect!)
 
-    cbs = CallbackSet(cb_ener, cb_stop)
+    cbs = CallbackSet(cbs_save, cb_stop)
 
     sol = solve(prob, method(), progress=true, callback=cbs)
-    return sol, saved_eners
+    return sol
 end
 
 
@@ -116,7 +114,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   N::Int64=0, K::Int64=0, alpha::Float64=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
-                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6)
+                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet())
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -126,9 +124,8 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
         if length(links) == 0
             links = gen_links(graph, seed_l)
         end
-
         return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth)
+        method, eth, cbs_save)
     else
         throw("In CME_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  
@@ -136,7 +133,7 @@ end
 
 
 export CME_KSAT, HGraph, build_ER_HGraph, build_RR_HGraph, gen_links, print_ener, 
-       ener, rate_FMS_KSAT, build_args_rate_FMS, build_empty_graph
+       ener, rate_FMS_KSAT, build_args_rate_FMS, build_empty_graph, save_ener
 
 end
 

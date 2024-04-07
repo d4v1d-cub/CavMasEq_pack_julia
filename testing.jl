@@ -1,6 +1,6 @@
 include("./CME.jl")
 using .CME
-using OrdinaryDiffEq
+using OrdinaryDiffEq, DiffEqCallbacks
 
 println("Packages loaded")
 
@@ -30,11 +30,14 @@ eth = 1e-6
 
 println("Running integration")
 
-answ, e_vals = CME_KSAT(rf, rargs, build_args_rate_FMS, N=n, K=K, alpha=alpha, 
-                        seed_g=seed, seed_l=seed, tspan=[t0, tlim])
+saved_eners = SavedValues(Float64, Float64)
+cb_ener = SavingCallback(save_ener, saved_eners)
+cbs_save = CallbackSet(cb_ener)
 
-answ, e_vals = CME_KSAT(rf, rargs, build_args_rate_FMS, 
-                        tspan=[t0, tlim])
+answ = CME_KSAT(rf, rargs, build_args_rate_FMS, N=n, K=K, alpha=alpha, 
+                        seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save)
+
+saved_eners
 
 fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
@@ -43,3 +46,5 @@ fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alp
 print_ener(e_vals, fileener)
 
 println("Integration finished")
+
+CallbackSet(CallbackSet(),cb_ener)
