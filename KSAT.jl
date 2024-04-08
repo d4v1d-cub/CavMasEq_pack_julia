@@ -264,35 +264,44 @@ end
 
 
 # This function computes the all the derivatives related to a node 'node'
-function all_ders_node_KSAT(p_cav::Array{Float64, 4}, probi::Float64, 
-    pu::Array{Float64, 3}, node::Int64, graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, 
-    all_lm::Vector{Vector{Vector{Int64}}}, ratefunc::Function, rate_args, 
-    links::Matrix{Int8}, ders_pcav::Array{Float64, 4}, nch::Int64, ch_u_cond::Matrix{Int64})
+function all_ders_he_KSAT(p_cav::Array{Float64, 4}, pu::Array{Float64, 3}, he::Int64, 
+    graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
+    ratefunc::Function, rate_args, ders_pcav::Array{Float64, 4}, nch::Int64, 
+    ch_u_cond::Matrix{Int64}, all_sums::Array{Float64, 4})
     
-    all_sums = zeros(Float64, (2, 2, 2))
-
-    for he in graph.var_2_he[node]           # Computing all the derivatives of cavity probabilities 
-        place_in = graph.nodes_in[he][node]  # where 'node' is flipped
-        for j in 1:graph.K - 1
-            node_neigh = graph.nodes_except[he, place_in, j]
-            place_neigh = graph.nodes_in[he][node_neigh]   
+    inner_sums = zeros(Float64, (2, 2, 2))
+    for i in 1:graph.K                      # Computing all the derivatives of cavity probabilities
+        node = graph.he_2_var[he, i]        # in the hyperedge 'he' when 'node' is flipped
+        for j in 1:graph.K - 1        
+            node_neigh = graph.nodes_except[he, i, j]
+            place_neigh = graph.nodes_in[he][node_neigh] 
             ch_exc_unsat = ch_u_cond[he, place_neigh]  # gives the configuration that unsatisfies every link
                                                        # converting it to an integer
             place_in_exc = graph.place_there[he, place_neigh][node] # Gets the index of 'node' in the 
                                                        # array  graph.nodes_except[he, place_neigh, :]
-            all_sums, ders_pcav[he, place_neigh, :, :] = 
-                der_pcav_KSAT(p_cav[he, place_neigh, :, :], pu, he, node, place_in_exc, ch_exc_unsat, 
-                graph, all_lp, all_lm, ratefunc, rate_args, ders_pcav[he, place_neigh, :, :], nch)   
+            inner_sums, ders_pcav[he, place_neigh, :, :] = 
+            der_pcav_KSAT(p_cav[he, place_neigh, :, :], pu, he, node, place_in_exc, ch_exc_unsat, 
+            graph, all_lp, all_lm, ratefunc, rate_args, ders_pcav[he, place_neigh, :, :], nch) 
+
+            if he == graph.var_2_he[node][end]
+                all_sums[node, :, :, :] .= inner_sums
+            end
         end
-    end
+    end 
+end
+
+
+function all_ders_node_KSAT(probi::Float64, pu::Array{Float64, 3}, node::Int64, graph::HGraph, 
+    links::Matrix{Int8}, all_sums::Array{Float64, 4})
 
     if length(graph.var_2_he[node]) > 0
         he = graph.var_2_he[node][end]
         place_in = graph.nodes_in[he][node]
-        return der_pi_KSAT(probi, pu[he, place_in, :], all_sums, links[he, place_in])
+        return der_pi_KSAT(probi, pu[he, place_in, :], all_sums[node, :, :, :], links[he, place_in])
     else
         return 0
     end
+
 end
 
 
@@ -303,10 +312,17 @@ function all_ders_CME_KSAT(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu:
     
     d_pcav = zeros(Float64, size(p_cav))
     d_node = zeros(Float64, size(probi))
+    all_sums = zeros(Float64, (graph.N, 2, 2, 2))
     nch = graph.chains_he ÷ 2
-    for node in 1:graph.N
-        d_node[node] = all_ders_node_KSAT(p_cav, probi[node], pu, node, graph, all_lp, 
-                                          all_lm, ratefunc, rate_args, links, d_pcav, nch, ch_u_cond)
+
+    Threads.@threads for he in 1:graph.M
+        all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
+                         nch, ch_u_cond, all_sums)
     end
+
+    for node in 1:graph.N
+        d_node[node] = all_ders_node_KSAT(probi[node], pu, node, graph, links, all_sums)
+    end
+
     return d_pcav, d_node
 end
