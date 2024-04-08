@@ -1,5 +1,5 @@
-include("./CME.jl")
-using .CME
+include("./ApproxMasEq.jl")
+using .ApproxMasEq
 using OrdinaryDiffEq, DiffEqCallbacks
 
 println("Packages loaded")

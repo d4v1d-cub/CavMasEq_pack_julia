@@ -1,17 +1,12 @@
-# This function initializes the cavity conditional probabilities with a fully 
+# This function initializes the joint probabilities in a hyperedge with a fully 
 # independent initial distribution given by the vector 'p0'.
-# It produces an array p_cav[he, i, val_cond, chain_others]
-function init_p_cav(graph::HGraph, p0::Vector{Float64})
-    ch_exc = graph.chains_he ÷ 2
-    p_cav = zeros(Float64, (graph.M, graph.K, 2, ch_exc))
+# It produces an array p_joint[he, chain]
+function init_p_joint(graph::HGraph, p0::Vector{Float64})
+    p_joint = zeros(Float64, (graph.M, graph.chains_he))
     for he in 1:graph.M
-        for i in 1:graph.K
-            for s in 1:2
-                for ch in 0:ch_exc - 1
-                    bits = digits(ch, base=2, pad=graph.K-1)
-                    p_cav[he, i, s, ch + 1] = prod(bits + (1 .- 2 * bits) .* p0[graph.nodes_except[he, i, :]])
-                end
-            end
+        for ch in 0:graph.chains_he - 1
+            bits = digits(ch, base=2, pad=graph.K)
+            p_joint[he, ch + 1] = prod(bits + (1 .- 2 * bits) .* p0[graph.he_2_var[he, :]])
         end
     end
     return p_cav
@@ -20,46 +15,43 @@ end
 
 # The user can just pass a single float 'p0' and the vector of initial conditions 
 # is assumed to be homogeneous
-function init_p_cav(graph::HGraph, p0::Float64)
+function init_p_joint(graph::HGraph, p0::Float64)
     p0 = fill(p0, graph.N)
-    init_p_cav(graph, p0)
+    init_p_joint(graph, p0)
 end
 
 
-# This function computes one term in the derivative of pcav. It corresponds to
-# the flipping of the variable indexed as 'index_in' among the variables in the argument
-# of p_cav. The array 'all_sums' is computed using the function 'compute_all_sums'
-# ch_exc is an integer that codes the combination of the variables in the argument of the
-# probability 'p_cav'. In this case all p_cav are conditioned to one already unsatisfied link.
-function der_pcav_contr_node_unsat(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
-    ch_exc::Int64, ch_exc_unsat::Int64, 
-    index_in::Int64)
-
-    ch_exc_flip = (ch_exc ⊻ (2 ^ (index_in - 1)))  # The ⊻ (xor) operation flips the variable
-    val = ((ch_exc >> (index_in - 1)) & 1)         # Takes the value of the variable
-    Ea = (ch_exc == ch_exc_unsat)                  # As the variable in the conditional is set 
-    Ea_flip = (ch_exc_flip == ch_exc_unsat)        # to always unsatisfy its link, the clause
-    # will be unsatisfied only if the rest of the variables are in their unsatisfied configuration
-
-    return -all_sums[val + 1, Ea + 1, Ea_flip + 1] * p_cav[ch_exc + 1] + 
-        all_sums[2 - val, Ea_flip + 1, Ea + 1] * p_cav[ch_exc_flip + 1]
+function compute_p_cond(p_joint::Array{Float64, 2}, graph::HGraph)
+    nch_exc = graph.chains_he ÷ 2
+    p_cond = zeros(Float64, (graph.M, graph.K, 2, nch_exc))
+    for he in 1:graph.M
+        for i in 1:graph.K
+            for s in 1:2
+                for ch_exc in 0:nch_exc - 1
+                    
+                end                
+            end
+        end
+    end
 end
 
 
-
-# This function computes one term in the derivative of pcav. It corresponds to
+# This function computes one term in the derivative of p_joint. It corresponds to
 # the flipping of the variable indexed as 'index_in' among the variables in the argument
-# of p_cav. The array 'all_sums' is computed using the function 'compute_all_sums'
-# ch_exc is an integer that codes the combination of the variables in the argument of the
-# probability 'p_cav'. In this case all p_cav are conditioned to one satisfied link.
-function der_pcav_contr_node_sat(p_cav::Vector{Float64}, all_sums::Array{Float64, 3}, 
-    ch_exc::Int64, index_in::Int64)
+# of p_joint. The array 'all_sums' is computed using the function 'compute_all_sums'
+# ch is an integer that codes the combination of the variables in the argument of the
+# probability 'p_joint'.
+function der_pjoint_contr_node(p_joint::Vector{Float64}, all_sums::Array{Float64, 3}, 
+    ch::Int64, ch_unsat::Int64, index_in::Int64)
 
-    ch_exc_flip = (ch_exc ⊻ (2 ^ (index_in - 1)))  # The ⊻ (xor) operation flips the variable
-    val = ((ch_exc >> (index_in - 1)) & 1)         # Takes the value of the variable
+    ch_flip = (ch ⊻ (2 ^ (index_in - 1)))      # The ⊻ (xor) operation flips the variable
+    val = ((ch >> (index_in - 1)) & 1)         # Takes the value of the variable
+    Ea = (ch == ch_unsat)                      # Compares with the unsatisfied combination 
+    Ea_flip = (ch_flip == ch_unsat)            # Compares the state with the variable flipped with
+    # the unsat combination inside the clause
 
-    return -all_sums[val + 1, 1, 1] * p_cav[ch_exc + 1] + 
-    all_sums[2 - val, 1, 1] * p_cav[ch_exc_flip + 1]
+    return -all_sums[val + 1, Ea + 1, Ea_flip + 1] * p_joint[ch + 1] + 
+        all_sums[2 - val, Ea_flip + 1, Ea + 1] * p_joint[ch_flip + 1]
 end
 
 
@@ -68,44 +60,18 @@ end
 # the flipping of variable 'node' inside a clause 'he' conditioned on another node that is
 # defined in the function all_ders_node_KSAT (see below)
 # The result is cumulated in the matrix 'ders'
-function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Array{Float64, 3}, he::Int64, 
-    node::Int64, place_node::Int64, ch_exc_unsat::Int64, graph::HGraph, 
+function der_pjoint_KSAT(p_joint::Vector{Float64}, pu::Array{Float64, 3}, he::Int64, 
+    node::Int64, place_node::Int64, ch_unsat::Int64, graph::HGraph, 
     all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
-    ratefunc::Function, rate_args, ders::Matrix{Float64}, nch::Int64)
+    ratefunc::Function, rate_args, ders::Vector{Float64})
 
     all_sums = compute_all_sums(pu, node, he, graph, all_lp, all_lm, ratefunc, rate_args)
-    for ch_exc in 0:nch-1
-        ders[1, ch_exc + 1] += der_pcav_contr_node_sat(p_cav[1, :], all_sums, ch_exc, place_node)
-        ders[2, ch_exc + 1] += der_pcav_contr_node_unsat(p_cav[2, :], all_sums, ch_exc, ch_exc_unsat, 
-                                                        place_node)   
+    for ch in 0:graph.chains_he-1
+        ders[ch + 1] += der_pjoint_contr_node(p_joint, all_sums, ch, ch_unsat, place_node)   
     end
-    return all_sums, ders
+    return ders
     # It returns the sums corresponding to flipping node with fixed values of 'he' and the 
     # computed derivatives
-end
-
-
-# Given the sum-products corresponding to the flipping variable 'i', summed over all the clauses
-# containing 'i' different from a given 'he', this function computes the derivative of the local
-# probability 'probi'. It receives the cavity conditional probability of having 'he' unsatisfied
-# (pu_he) and the value of the link between 'i' and 'he' (li_he)
-function der_pi_KSAT(probi::Float64, pu_he::Vector{Float64}, all_sums::Array{Float64, 3}, 
-             li_he::Int8)
-    cumul = 0.0
-    for u_neigh in 0:1
-        pr = 1 - u_neigh - (1 - 2 * u_neigh) * pu_he[li_he + 1]
-        pr_flip = 1 - u_neigh - (1 - 2 * u_neigh) * pu_he[2 - li_he]
-        Ea = u_neigh * (li_he == 1)             # 'u_neigh' controls the state of the rest of the variables in 'he'
-        # If u_neigh = 1, the rest of the variables unsatisfy their links and u=0 otherwise 
-        # However, the clause 'he' is unsat only is 'i' also unsatisfies its link
-        # As 'probi' is defined for si = 0, this happens only if 'li_he=1'
-        Ea_flip = u_neigh * (li_he == 0)       # On the other hand, if li_he=0 the clause will be unsatisfied
-        # after flipping 'si'
-        cumul += -all_sums[1, Ea + 1, Ea_flip + 1] * pr * probi + 
-        all_sums[2, Ea_flip + 1, Ea + 1] * pr_flip * (1 - probi)
-    end
-
-    return cumul
 end
 
 
