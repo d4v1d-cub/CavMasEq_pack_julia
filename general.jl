@@ -29,3 +29,18 @@ function recursive_marginal(pu::Vector{Float64}, c::Int64, k::Int64, fE::Vector{
         return fE
     end
 end
+
+
+# Inserts a bit ('val' - 1) in the position 'place' of the number 'ch_exc'
+function convert_chain(ch_exc::Int64, val::Int64, place::Int64)
+    return (val - 1) * 2 ^ (place - 1) + ch_exc % (2 ^ (place - 1)) + 
+           2 ^ place * (ch_exc ÷ (2  ^ (place - 1)))
+end
+
+
+# It normalizes a vector with the norm 1
+function normalize(vec::Vector{Float64})
+    n = sum(vec)
+    vec ./= n
+    return vec
+end

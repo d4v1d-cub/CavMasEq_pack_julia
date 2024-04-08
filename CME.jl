@@ -109,7 +109,7 @@ function der_pi_KSAT(probi::Float64, pu_he::Vector{Float64}, all_sums::Array{Flo
 end
 
 
-# This function computes the all the derivatives related to a node 'node'
+# This function computes the all the derivatives related to a hyperedge 'he'
 function all_ders_he_KSAT(p_cav::Array{Float64, 4}, pu::Array{Float64, 3}, he::Int64, 
     graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
     ratefunc::Function, rate_args, ders_pcav::Array{Float64, 4}, nch::Int64, 
@@ -175,7 +175,7 @@ end
 
 
 # This function computes the derivative of the probabilities and feeds the julia's ODE integrator
-function fder_KSAT(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
+function fder_KSAT_CME(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, len_cav, efinal = p
     # These are the parameters of the integration
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
@@ -184,7 +184,7 @@ function fder_KSAT(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
 
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
 
-    st = State(p_cav, probi, pu)  # A struct of type state is created just to pass it as an argument
+    st = State_CME(p_cav, probi, pu)  # A struct of type state is created just to pass it as an argument
                                   # for the builder of the rates' function arguments
                                   # This way, the user can choose what information to use inside the 
                                   # rate
@@ -198,7 +198,7 @@ function fder_KSAT(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
 end
 
 
-function save_ener(u, t, integrator)
+function save_ener_CME(u, t, integrator)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build,
                len_cav, efinal = integrator.p
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
@@ -209,7 +209,7 @@ function save_ener(u, t, integrator)
     return e
 end
 
-function stopcond(u, t, integrator)
+function stopcond_CME(u, t, integrator)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, 
               len_cav, efinal = integrator.p
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
@@ -232,10 +232,10 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
     params = graph, all_lp, all_lm, links, ch_u, ch_u_cond, ratefunc, rargs_cst, rarg_build, len_cav, 
              efinal
     u0 = vcat(reshape(p_cav, len_cav), probi)
-    prob = ODEProblem(fder_KSAT, u0, tspan, params)
+    prob = ODEProblem(fder_KSAT_CME, u0, tspan, params)
 
     affect!(integrator) = terminate!(integrator)
-    cb_stop = ContinuousCallback(stopcond, affect!)
+    cb_stop = ContinuousCallback(stopcond_CME, affect!)
 
     cbs = CallbackSet(cbs_save, cb_stop)
 
