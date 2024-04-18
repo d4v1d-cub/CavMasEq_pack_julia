@@ -5,7 +5,8 @@
 function gen_links(graph::HGraph, idum::Int64=rand(1:typemax(Int64)))
     Random.seed!(idum)
     links = zeros(Int8, (graph.M, graph.K))
-    for he in 1:graph.M
+    hedges = Random.shuffle(1:graph.M)
+    for he in hedges
         for i in 1:graph.K
             links[he, i] = rand([0, 1])
         end

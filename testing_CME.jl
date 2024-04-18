@@ -11,10 +11,10 @@ println("Packages loaded")
 # include("./KSAT.jl")
 # include("./CME.jl")
 
-# n = parse(Int64, ARGS[1])
-# alpha = parse(Float64, ARGS[2])
-N = 100
-alpha = 2.3
+N = parse(Int64, ARGS[1])
+alpha = parse(Float64, ARGS[2])
+# N = 1000
+# alpha = 2.5
 K = 3
 c = K * alpha
 p0 = 0.5
@@ -37,25 +37,18 @@ tspan = [t0, tlim]
 
 println("Running integration")
 answ = CME_KSAT(rf, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
-                seed_g=seed, seed_l=seed+1, tspan=[t0, tlim], cbs_save=cbs_save_CME)
-
-saved_eners_CDA = SavedValues(Float64, Float64)
-cb_ener_CDA = SavingCallback(save_ener_CDA, saved_eners_CDA)
-cbs_save_CDA = CallbackSet(cb_ener_CDA)
-
-answ = CDA_KSAT(rf, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
-                seed_g=seed, seed_l=seed+1, tspan=[t0, tlim], cbs_save=cbs_save_CDA)
+                seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CME)
 
 
-# fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
-#            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
-#            "_tmax_" * string(tlim) * ".txt"
+fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
+           string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
+           "_tmax_" * string(tlim) * ".txt"
 
-# print_ener(saved_eners_CME, fileener)
+print_ener(saved_eners_CME, fileener)
 
-# println("Integration finished")
+println("Integration finished")
 
-
+Random.shuffle([1, 2, 3])
 
 # efinal = 1e-4 * N
 # graph = build_ER_HGraph(N, c, K, 1)
