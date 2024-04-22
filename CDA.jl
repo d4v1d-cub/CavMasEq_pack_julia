@@ -21,17 +21,19 @@ function init_p_joint(graph::HGraph, p0::Float64)
 end
 
 
-function compute_p_cond(p_joint::Matrix{Float64}, graph::HGraph)
+function compute_p_cond(p_joint::Matrix{Float64}, graph::HGraph, links::Matrix{Float64})
     nch_exc = graph.chains_he ÷ 2
     p_cond = Array{Float64, 4}(undef, graph.M, graph.K, 2, nch_exc)
     for he in 1:graph.M
         for i in 1:graph.K
+            li = links[he, i]
             for s in 1:2
+                sat_i = (s - 1) == li
                 for ch_exc in 0:nch_exc - 1
                     ch = convert_chain(ch_exc, s, i)
-                    p_cond[he, i, s, ch_exc + 1] = p_joint[he, ch + 1] 
+                    p_cond[he, i, 2 - sat_i, ch_exc + 1] = p_joint[he, ch + 1] 
                 end                
-                p_cond[he, i, s, :] .= normalize(p_cond[he, i, s, :])
+                p_cond[he, i, 2 - sat_i, :] .= normalize(p_cond[he, i, 2 - sat_i, :])
             end
         end
     end
@@ -98,9 +100,14 @@ function all_ders_CDA_KSAT(p_joint::Matrix{Float64}, pu::Array{Float64, 3},
 
     ders = zeros(Float64, size(p_joint))
 
-    Threads.@threads for he in 1:graph.M
-    all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
-                     ch_u)
+    # Threads.@threads for he in 1:graph.M
+    # all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
+    #                  ch_u)
+    # end
+
+    for he in 1:graph.M
+        all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
+                         ch_u)
     end
 
     return ders

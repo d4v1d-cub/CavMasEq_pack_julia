@@ -77,7 +77,7 @@ function der_pcav_KSAT(p_cav::Matrix{Float64}, pu::Array{Float64, 3}, he::Int64,
     for ch_exc in 0:nch-1
         ders[1, ch_exc + 1] += der_pcav_contr_node_sat(p_cav[1, :], all_sums, ch_exc, place_node)
         ders[2, ch_exc + 1] += der_pcav_contr_node_unsat(p_cav[2, :], all_sums, ch_exc, ch_exc_unsat, 
-                                                        place_node)   
+                                                         place_node)   
     end
     return all_sums, ders
     # It returns the sums corresponding to flipping node with fixed values of 'he' and the 
@@ -161,9 +161,14 @@ function all_ders_CME_KSAT(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu:
     all_sums = zeros(Float64, (graph.N, 2, 2, 2))
     nch = graph.chains_he ÷ 2
 
-    Threads.@threads for he in 1:graph.M
-    all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
-                    nch, ch_u_cond, all_sums)
+    # Threads.@threads for he in 1:graph.M
+    # all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
+    #                 nch, ch_u_cond, all_sums)
+    # end
+
+    for he in 1:graph.M
+        all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
+                        nch, ch_u_cond, all_sums)
     end
 
     for node in 1:graph.N
@@ -222,7 +227,7 @@ end
 # and some boolean formula (given by graph and links)
 function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function, 
                        graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
-                       method, eth::Float64, cbs_save::CallbackSet)
+                       method, eth::Float64, cbs_save::CallbackSet, dt_s::Float64)
     efinal = eth * graph.N
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
@@ -239,7 +244,7 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 
     cbs = CallbackSet(cbs_save, cb_stop)
 
-    sol = solve(prob, method(), progress=true, callback=cbs)
+    sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s)
     return sol
 end
 
@@ -251,7 +256,8 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   N::Int64=0, K::Int64=0, alpha::Float64=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
-                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet())
+                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
+                  dt_s::Float64=0.1)
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -262,7 +268,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
             links = gen_links(graph, seed_l)
         end
         return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth, cbs_save)
+        method, eth, cbs_save, dt_s)
     else
         throw("In CME_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  

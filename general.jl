@@ -2,7 +2,7 @@
 
 # Transforms a Matrix into an Array of Arrays
 function slicematrix(A::AbstractMatrix)
-    return [c[:] for c in eachcol(A)]
+    return [c[:] for c in eachrow(A)]
 end
 
 
