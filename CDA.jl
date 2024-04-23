@@ -181,7 +181,7 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
-                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, 
+                  p0::Float64=0.5, method=VCABM, eth::Float64=1e-6, 
                   cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1)
     if N > 0
         if graph.N == 0
