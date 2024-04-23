@@ -2,7 +2,7 @@ include("./ApproxMasEq.jl")
 using .ApproxMasEq
 using OrdinaryDiffEq, DiffEqCallbacks
 
-println("Packages loaded")
+# println("Packages loaded")
 
 # using Random
 # include("./general.jl")
@@ -11,10 +11,10 @@ println("Packages loaded")
 # include("./KSAT.jl")
 # include("./CME.jl")
 
-# N = parse(Int64, ARGS[1])
-# alpha = parse(Float64, ARGS[2])
-N = 100
-alpha = 1
+N = parse(Int64, ARGS[1])
+alpha = parse(Float64, ARGS[2])
+# N = 1000
+# alpha = 2.2
 K = 3
 c = K * alpha
 p0 = 0.5
@@ -35,18 +35,18 @@ cbs_save_CME = CallbackSet(cb_ener_CME)
 
 tspan = [t0, tlim]
 
-println("Running integration")
+# println("Running integration")
 answ = CME_KSAT(rf, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
                 seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CME, dt_s=2.5)
 
 
-fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(n) * "_alpha_" * 
+fileener = "CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
            "_tmax_" * string(tlim) * ".txt"
 
 print_ener(saved_eners_CME, fileener)
 
-println("Integration finished")
+# println("Integration finished")
 
 # efinal = 1e-4 * N
 # graph = build_RR_HGraph(N, c, K, 1)

@@ -161,15 +161,15 @@ function all_ders_CME_KSAT(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu:
     all_sums = zeros(Float64, (graph.N, 2, 2, 2))
     nch = graph.chains_he ÷ 2
 
-    # Threads.@threads for he in 1:graph.M
-    # all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
-    #                 nch, ch_u_cond, all_sums)
-    # end
-
-    for he in 1:graph.M
-        all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
-                        nch, ch_u_cond, all_sums)
+    Threads.@threads for he in 1:graph.M
+    all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
+                    nch, ch_u_cond, all_sums)
     end
+
+    # for he in 1:graph.M
+    #     all_ders_he_KSAT(p_cav, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, d_pcav, 
+    #                     nch, ch_u_cond, all_sums)
+    # end
 
     for node in 1:graph.N
     d_node[node] = all_ders_node_KSAT(probi[node], pu, node, graph, links, all_sums)
@@ -210,7 +210,7 @@ function save_ener_CME(u, t, integrator)
     probi = u[len_cav + 1:len_cav + graph.N]
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
     e = ener(graph, probi, pu, ch_u)
-    println(t, "\t", e, "\tdone")
+    println(t, "\t", e)
     return e
 end
 
@@ -245,6 +245,7 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
     cbs = CallbackSet(cbs_save, cb_stop)
 
     sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s)
+    # sol = solve(prob, method(), progress=true, callback=cbs)
     return sol
 end
 
@@ -253,7 +254,7 @@ end
 # and some boolean formula (given by graph and links)
 function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   graph::HGraph=build_empty_graph(), 
-                  N::Int64=0, K::Int64=0, alpha::Float64=0.0, seed_g::Int64=rand(1:typemax(Int64)),
+                  N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
                   p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),

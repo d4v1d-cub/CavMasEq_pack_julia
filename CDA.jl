@@ -21,7 +21,7 @@ function init_p_joint(graph::HGraph, p0::Float64)
 end
 
 
-function compute_p_cond(p_joint::Matrix{Float64}, graph::HGraph, links::Matrix{Float64})
+function compute_p_cond(p_joint::Matrix{Float64}, graph::HGraph, links::Matrix{Int8})
     nch_exc = graph.chains_he ÷ 2
     p_cond = Array{Float64, 4}(undef, graph.M, graph.K, 2, nch_exc)
     for he in 1:graph.M
@@ -100,15 +100,15 @@ function all_ders_CDA_KSAT(p_joint::Matrix{Float64}, pu::Array{Float64, 3},
 
     ders = zeros(Float64, size(p_joint))
 
-    # Threads.@threads for he in 1:graph.M
-    # all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
-    #                  ch_u)
-    # end
-
-    for he in 1:graph.M
-        all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
-                         ch_u)
+    Threads.@threads for he in 1:graph.M
+    all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
+                     ch_u)
     end
+
+    # for he in 1:graph.M
+    #     all_ders_he_KSAT(p_joint, pu, he, graph, all_lp, all_lm, ratefunc, rate_args, ders, 
+    #                      ch_u)
+    # end
 
     return ders
 end
@@ -116,12 +116,12 @@ end
 
 # This function computes the derivative of the probabilities and feeds the julia's ODE integrator
 function fder_KSAT_CDA(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
-    graph, all_lp, all_lm, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = p
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = p
     # These are the parameters of the integration
     p_joint = reshape(u, (graph.M, graph.chains_he))
     # The probabilities are reshaped in their original forms
 
-    p_cond = compute_p_cond(p_joint, graph)
+    p_cond = compute_p_cond(p_joint, graph, links)
     pu = comp_pu_KSAT(p_cond, graph, ch_u_cond)
 
     st = State_CDA(p_joint, pu)  # A struct of type state is created just to pass it as an argument
@@ -138,15 +138,15 @@ end
 
 
 function save_ener_CDA(u, t, integrator)
-    graph, all_lp, all_lm, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
     p_joint = reshape(u, (graph.M, graph.chains_he))
     e = ener(p_joint, ch_u)
-    println(t, "\t", e, "\tdone")
+    println(t, "\t", e)
     return e
 end
 
 function stopcond_CDA(u, t, integrator)
-    graph, all_lp, all_lm, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
+    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
     p_joint = reshape(u, (graph.M, graph.chains_he))
     return ener(p_joint, ch_u) - efinal
 end
@@ -155,12 +155,12 @@ end
 # and some boolean formula (given by graph and links)
 function CDA_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function, 
                        graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
-                       method, eth::Float64, cbs_save::CallbackSet)
+                       method, eth::Float64, cbs_save::CallbackSet, dt_s::Float64)
     efinal = eth * graph.N
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
     p_joint = init_p_joint(graph, p0)
-    params = graph, all_lp, all_lm, ch_u, ch_u_cond, ratefunc, rargs_cst, rarg_build, efinal
+    params = graph, all_lp, all_lm, links, ch_u, ch_u_cond, ratefunc, rargs_cst, rarg_build, efinal
     u0 = reshape(p_joint, graph.M * graph.chains_he)
     prob = ODEProblem(fder_KSAT_CDA, u0, tspan, params)
 
@@ -169,7 +169,7 @@ function CDA_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 
     cbs = CallbackSet(cbs_save, cb_stop)
 
-    sol = solve(prob, method(), progress=true, callback=cbs)
+    sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s)
     return sol
 end
 
@@ -178,10 +178,11 @@ end
 # and some boolean formula (given by graph and links)
 function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   graph::HGraph=build_empty_graph(), 
-                  N::Int64=0, K::Int64=0, alpha::Float64=0.0, seed_g::Int64=rand(1:typemax(Int64)),
+                  N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
-                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet())
+                  p0::Float64=0.5, method=VCAB4, eth::Float64=1e-6, 
+                  cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1)
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -192,7 +193,7 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
             links = gen_links(graph, seed_l)
         end
         return CDA_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth, cbs_save)
+        method, eth, cbs_save, dt_s)
     else
         throw("In CDA_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  
