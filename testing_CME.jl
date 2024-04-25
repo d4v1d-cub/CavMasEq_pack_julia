@@ -2,7 +2,7 @@ include("./ApproxMasEq.jl")
 using .ApproxMasEq
 using OrdinaryDiffEq, DiffEqCallbacks
 
-println("Threads.nthreads()")
+println(Threads.nthreads())
 
 N = parse(Int64, ARGS[1])
 alpha = parse(Float64, ARGS[2])
