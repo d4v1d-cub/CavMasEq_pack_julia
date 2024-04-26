@@ -227,7 +227,8 @@ end
 # and some boolean formula (given by graph and links)
 function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function, 
                        graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
-                       method, eth::Float64, cbs_save::CallbackSet, dt_s::Float64)
+                       method, eth::Float64, cbs_save::CallbackSet, dt_s::Float64, 
+                       abstol::Float64, reltol::Float64)
     efinal = eth * graph.N
     all_lp, all_lm = all_lpm(graph, links)
     ch_u, ch_u_cond = unsat_ch(graph, links)
@@ -244,7 +245,8 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 
     cbs = CallbackSet(cbs_save, cb_stop)
 
-    sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s)
+    sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s, 
+                abstol=abstol, reltol=reltol)
     # sol = solve(prob, method(), progress=true, callback=cbs)
     return sol
 end
@@ -258,7 +260,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
                   p0::Float64=0.5, method=VCABM, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
-                  dt_s::Float64=0.1)
+                  dt_s::Float64=0.1, abstol::Float64=1e-6, reltol::Float64=1e-3)
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -269,7 +271,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
             links = gen_links(graph, seed_l)
         end
         return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth, cbs_save, dt_s)
+        method, eth, cbs_save, dt_s, abstol, reltol)
     else
         throw("In CME_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  
