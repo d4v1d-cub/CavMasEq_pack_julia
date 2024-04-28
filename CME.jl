@@ -210,10 +210,7 @@ function save_ener_CME(u, t, integrator)
     probi = u[len_cav + 1:len_cav + graph.N]
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
     e = ener(graph, probi, pu, ch_u)
-    max_pcav = maximum(p_cav)
-    min_pcav = minimum(p_cav)
-    norm_pcav = sum(p_cav) / (graph.M * graph.K * 2)
-    println(t, "\t", e, "\tmax_p=", max_pcav, "\tmin_p=", min_pcav, "\tnorm_p=", norm_pcav)
+    println(t, "\t", e)
     return e
 end
 

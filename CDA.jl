@@ -141,10 +141,7 @@ function save_ener_CDA(u, t, integrator)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
     p_joint = reshape(u, (graph.M, graph.chains_he))
     e = ener(p_joint, ch_u)
-    max_p = maximum(p_joint)
-    min_p = minimum(p_joint)
-    norm_p = sum(p_joint) / graph.M
-    println(t, "\t", e, "\tmax_p=", max_p, "\tmin_p=", min_p, "\tnorm_p=", norm_p)
+    println(t, "\t", e)
     return e
 end
 
