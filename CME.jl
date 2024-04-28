@@ -210,7 +210,10 @@ function save_ener_CME(u, t, integrator)
     probi = u[len_cav + 1:len_cav + graph.N]
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
     e = ener(graph, probi, pu, ch_u)
-    println(t, "\t", e)
+    max_pcav = maximum(p_cav)
+    min_pcav = minimum(p_cav)
+    norm_pcav = sum(p_cav) / (graph.M * graph.K * 2)
+    println(t, "\t", e, "\tmax_p=", max_pcav, "\tmin_p=", min_pcav, "\tnorm_p=", norm_pcav)
     return e
 end
 
@@ -259,7 +262,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
-                  p0::Float64=0.5, method=VCABM, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
+                  p0::Float64=0.5, method=Tsit5, eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
                   dt_s::Float64=0.1, abstol::Float64=1e-6, reltol::Float64=1e-3)
     if N > 0
         if graph.N == 0

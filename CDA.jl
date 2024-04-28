@@ -141,7 +141,10 @@ function save_ener_CDA(u, t, integrator)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
     p_joint = reshape(u, (graph.M, graph.chains_he))
     e = ener(p_joint, ch_u)
-    println(t, "\t", e)
+    max_p = maximum(p_joint)
+    min_p = minimum(p_joint)
+    norm_p = sum(p_joint) / graph.M
+    println(t, "\t", e, "\tmax_p=", max_p, "\tmin_p=", min_p, "\tnorm_p=", norm_p)
     return e
 end
 
@@ -182,7 +185,7 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   graph::HGraph=build_empty_graph(), 
                   N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
-                  tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=VCABM, 
+                  tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=Tsit5, 
                   eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1, 
                   abstol::Float64=1e-6, reltol::Float64=1e-3)
     if N > 0
