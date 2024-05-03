@@ -210,7 +210,7 @@ function save_ener_CME(u, t, integrator)
     probi = u[len_cav + 1:len_cav + graph.N]
     pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
     e = ener(graph, probi, pu, ch_u)
-    println(t, "\t", e)
+    println(t, "\t", e, "\t", Sys.total_memory() / 2^20, "\t", Sys.free_memory() / 2^20)
     return e
 end
 

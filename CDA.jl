@@ -141,7 +141,7 @@ function save_ener_CDA(u, t, integrator)
     graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
     p_joint = reshape(u, (graph.M, graph.chains_he))
     e = ener(p_joint, ch_u)
-    println(t, "\t", e)
+    println(t, "\t", e, "\t", Sys.total_memory() / 2^20, "\t", Sys.free_memory() / 2^20)
     return e
 end
 
