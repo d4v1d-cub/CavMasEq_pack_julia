@@ -1,6 +1,6 @@
 include("./ApproxMasEq.jl")
 using .ApproxMasEq
-using OrdinaryDiffEq, DiffEqCallbacks
+using OrdinaryDiffEq, DiffEqCallbacks, Sundials
 
 # println(Threads.nthreads())
 
@@ -31,9 +31,11 @@ cbs_save_CME = CallbackSet(cb_ener_CME)
 
 tspan = [t0, tlim]
 
+method=CVODE_BDF(linear_solver = :GMRES)
+
 answ = CME_KSAT(rf, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
                 seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CME, dt_s=2.5, 
-                abstol=abstol, reltol=reltol)
+                abstol=abstol, reltol=reltol, method=method)
 
 
 fileener = "../Test/CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 

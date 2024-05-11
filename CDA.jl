@@ -170,7 +170,7 @@ function CDA_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 
     cbs = CallbackSet(cbs_save, cb_stop)
 
-    sol = solve(prob, method(), progress=true, callback=cbs, saveat=dt_s, 
+    sol = solve(prob, method, progress=true, callback=cbs, saveat=dt_s, 
                 abstol=abstol, reltol=reltol)
     return sol
 end
@@ -182,7 +182,7 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   graph::HGraph=build_empty_graph(), 
                   N::Int64=0, K::Int64=0, alpha::Union{Float64, Int64}=0.0, seed_g::Int64=rand(1:typemax(Int64)),
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
-                  tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=VCABM, 
+                  tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=VCABM(), 
                   eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1, 
                   abstol::Float64=1e-6, reltol::Float64=1e-3)
     if N > 0

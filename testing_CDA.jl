@@ -30,6 +30,8 @@ cbs_save_CDA = CallbackSet(cb_ener_CDA)
 
 tspan = [t0, tlim]
 
+method=CVODE_BDF(linear_solver = :GMRES)
+
 answ = CDA_KSAT(rf, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
                 seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CDA, dt_s=1.0, 
                 abstol=abstol, reltol=reltol)
