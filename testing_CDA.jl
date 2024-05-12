@@ -1,6 +1,6 @@
 include("./ApproxMasEq.jl")
 using .ApproxMasEq
-using OrdinaryDiffEq, DiffEqCallbacks
+using OrdinaryDiffEq, DiffEqCallbacks, Sundials
 
 # println(Threads.nthreads())
 
