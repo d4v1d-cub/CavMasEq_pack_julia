@@ -122,33 +122,58 @@ function fder_KSAT_CDA(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
     # The probabilities are reshaped in their original forms
 
     p_cond = compute_p_cond(p_joint, graph, links)
-    pu = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+    pu_cond = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+    p_joint_u = get_pju_CDA(graph, p_joint, ch_u)
 
-    st = State_CDA(p_joint, pu)  # A struct of type state is created just to pass it as an argument
-                                  # for the builder of the rates' function arguments
-                                  # This way, the user can choose what information to use inside the 
-                                  # rate
+    st = State_CDA(p_joint, pu_cond, p_joint_u)  
+    # A struct of type state is created just to pass it as an argument
+    # for the builder of the rates' function arguments
+    # This way, the user can choose what information to use inside the rate
 
-    rates_arg = rarg_build(graph, st, ch_u, rarg_cst...)
+    rates_arg = rarg_build(graph, st, rarg_cst...)
 
-    dp = all_ders_CDA_KSAT(p_joint, pu, graph, all_lp, all_lm, rfunc, rates_arg, ch_u)
+    dp = all_ders_CDA_KSAT(p_joint, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, ch_u)
 
     du .= reshape(dp, length(du))
 end
 
 
-function save_ener_CDA(u, t, integrator)
-    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
+function get_pju_CDA(graph::HGraph, p_joint::Matrix{Float64}, ch_u::Vector{Int64})
+    p_joint_u = zeros(Float64, graph.M)
+    for he in 1:graph.M
+        p_joint_u[he] = p_joint[he, ch_u[he] + 1]
+    end
+    return p_joint_u
+end
+
+
+function reshape_u_to_probs_CDA(u::Vector{Float64}, integrator)
+    graph = get_graph(integrator)
     p_joint = reshape(u, (graph.M, graph.chains_he))
-    e = ener(p_joint, ch_u)
-    println(t, "\t", e, "\t", Sys.total_memory() / 2^20, "\t", Sys.free_memory() / 2^20)
+    return p_joint
+end
+
+
+function get_pju_CDA(u::Vector{Float64}, integrator)
+    graph = get_graph(integrator)
+    ch_u = get_ch_u(integrator)
+    p_joint = reshape_u_to_probs_CDA(u, integrator)
+    return get_pju_CDA(graph, p_joint, ch_u)
+end
+
+
+function save_ener_CDA(u, t, integrator)
+    p_joint_u = get_pju_CDA(u, integrator)
+    e = ener(p_joint_u)
+    println(t, "\t", e)
     return e
 end
 
 function stopcond_CDA(u, t, integrator)
-    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, efinal = integrator.p
-    p_joint = reshape(u, (graph.M, graph.chains_he))
-    return ener(p_joint, ch_u) - efinal
+    efinal = get_efinal(integrator)
+    p_joint_u = get_pju_CDA(u, integrator)
+    e = ener(p_joint_u)
+    return e - efinal
 end
 
 # This function integrates the CDA's equations for a specific algorithm (given by ratefunc)

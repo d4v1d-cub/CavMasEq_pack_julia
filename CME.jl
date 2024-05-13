@@ -187,41 +187,68 @@ function fder_KSAT_CME(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
     probi = u[len_cav + 1:len_cav + graph.N]
     # The probabilities are reshaped in their original forms
 
-    pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    pu_cond = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    p_joint_u = get_pju_CME(graph, probi, pu_cond, ch_u)
 
-    st = State_CME(p_cav, probi, pu)  # A struct of type state is created just to pass it as an argument
-                                  # for the builder of the rates' function arguments
-                                  # This way, the user can choose what information to use inside the 
-                                  # rate
+    st = State_CME(p_cav, probi, pu_cond, p_joint_u)  
+    # A struct of type state is created just to pass it as an argument
+    # for the builder of the rates' function arguments
+    # This way, the user can choose what information to use inside the rate
 
-    rates_arg = rarg_build(graph, st, ch_u, rarg_cst...)
+    rates_arg = rarg_build(graph, st, rarg_cst...)
 
-    d_pc, d_pi = all_ders_CME_KSAT(p_cav, probi, pu, graph, all_lp, all_lm, rfunc, rates_arg, links, 
+    d_pc, d_pi = all_ders_CME_KSAT(p_cav, probi, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, links, 
                                    ch_u_cond)
 
     du .= vcat(reshape(d_pc, len_cav), d_pi)
 end
 
 
-function save_ener_CME(u, t, integrator)
-    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build,
-               len_cav, efinal = integrator.p
+function get_pju_CME(graph::HGraph, probi::Vector{Float64}, pu_cond::Array{Float64, 3}, 
+                     ch_u::Vector{Int64})
+    p_joint_u = zeros(Float64, graph.M)
+    for he in 1:graph.M
+        node = graph.he_2_var[he, 1]
+        bit_node = ch_u[he] & 1
+        p_joint_u[he] = (bit_node + (1 - 2 * bit_node) * probi[node]) * pu_cond[he, 1, 2]
+    end
+    return p_joint_u
+end
+
+
+function reshape_u_to_probs_CME(u::Vector{Float64}, integrator)
+    graph = get_graph(integrator)
+    len_cav = integrator.p[10]
     p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
     probi = u[len_cav + 1:len_cav + graph.N]
-    pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
-    e = ener(graph, probi, pu, ch_u)
-    println(t, "\t", e, "\t", Sys.total_memory() / 2^20, "\t", Sys.free_memory() / 2^20)
+    return p_cav, probi
+end
+
+
+function get_pju_CME(u::Vector{Float64}, integrator)
+    graph = get_graph(integrator)
+    ch_u = get_ch_u(integrator)
+    ch_u_cond = get_ch_u_cond(integrator)
+    p_cav, probi = reshape_u_to_probs_CME(u, integrator)
+    pu_cond = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    return get_pju_CME(graph, probi, pu_cond, ch_u)
+end
+
+function save_ener_CME(u, t, integrator)
+    p_joint_u = get_pju_CME(u, integrator)
+    e = ener(p_joint_u)
+    println(t, "\t", e)
     return e
 end
 
+
 function stopcond_CME(u, t, integrator)
-    graph, all_lp, all_lm, links, ch_u, ch_u_cond, rfunc, rarg_cst, rarg_build, 
-              len_cav, efinal = integrator.p
-    p_cav = reshape(u[1:len_cav], (graph.M, graph.K, 2, graph.chains_he ÷ 2))
-    probi = u[len_cav + 1:len_cav + graph.N]
-    pu = comp_pu_KSAT(p_cav, graph, ch_u_cond)
-    return ener(graph, probi, pu, ch_u) - efinal
+    efinal = get_efinal(integrator)
+    p_joint_u = get_pju_CME(u, integrator)
+    e = ener(p_joint_u)
+    return e - efinal
 end
+
 
 # This function integrates the CME's equations for a specific algorithm (given by ratefunc)
 # and some boolean formula (given by graph and links)
