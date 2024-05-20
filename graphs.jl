@@ -63,14 +63,18 @@ function RRHyperGraph(N::Int64, c::Int64, K::Int64, idum::Int64)
         degrees = zeros(Int64, N)
         copynodes = repeat(1:N, c)  # We create an auxiliary array with 'c' copies of each node
         for he in 1:M
-            for i in 1:K
+            i = 0
+            while i < K
                 place = rand(1:length(copynodes))
-                he_2_var[he, i] = copynodes[place]
-                var_2_he[copynodes[place], degrees[copynodes[place]] + 1] = he
-                degrees[copynodes[place]] += 1
-                deleteat!(copynodes, place)
-                # By randomly selecting the nodes in each hyperedge from the auxiliary array
-                # we make sure that each node is in exactly 'c' hyperedges 
+                if !(place in he_2_var[he, :])
+                    he_2_var[he, i + 1] = copynodes[place]
+                    var_2_he[copynodes[place], degrees[copynodes[place]] + 1] = he
+                    degrees[copynodes[place]] += 1
+                    deleteat!(copynodes, place)
+                    i += 1
+                    # By randomly selecting the nodes in each hyperedge from the auxiliary array
+                    # we make sure that each node is in exactly 'c' hyperedges 
+                end
             end
         end
         return var_2_he, he_2_var, degrees        
@@ -100,13 +104,17 @@ function ERHyperGraph(N::Int64, c::Union{Float64, Int64}, K::Int64, idum::Int64)
         var_2_he = [Array{Int64, 1}() for _ in 1:N]
         degrees = zeros(Int64, N)
         for he in 1:M
-            for i in 1:K
+            i = 0
+            while i < K
                 node = rand(1:N)
-                he_2_var[he, i] = node
-                push!(var_2_he[node], he)
-                degrees[node] += 1
-                # Each hyperedge is formed by 'K' variables chosen uniformly at random
-                # This leads to a Poisson distribution of conectivities (ER Graph) 
+                if !(node in he_2_var[he, :])
+                    he_2_var[he, i + 1] = node
+                    push!(var_2_he[node], he)
+                    degrees[node] += 1
+                    i += 1
+                    # Each hyperedge is formed by 'K' variables chosen uniformly at random
+                    # This leads to a Poisson distribution of conectivities (ER Graph) 
+                end
             end
         end
         return var_2_he, he_2_var, degrees  
