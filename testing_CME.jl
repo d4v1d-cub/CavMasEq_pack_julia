@@ -17,23 +17,38 @@ t0 = 0.0
 tlim = parse(Float64, ARGS[7])
 abstol = parse(Float64, ARGS[8])
 reltol = parse(Float64, ARGS[9])
+custom = parse(Bool, ARGS[10])
+
+if custom
+    method = AM2_CME
+
+    t_list, e_list = CME_KSAT(rate_FMS_KSAT, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
+                              seed_g=seed, seed_l=seed, tspan=[t0, tlim], reltol=reltol, method=method, 
+                              custom=true)
+
+    fileener = "../Test/CME_KSAT_custom_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
+    string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
+    "_tmax_" * string(tlim) * "_seed_" * string(seed) * ".txt"
+
+    print_ener(t_list, e_list, fileener)
+else
+
+    saved_eners_CME = SavedValues(Float64, Float64)
+    cb_ener_CME = SavingCallback(save_ener_CME, saved_eners_CME)
+    cbs_save_CME = CallbackSet(cb_ener_CME)
 
 
+    method=CVODE_BDF(linear_solver = :GMRES)
 
-saved_eners_CME = SavedValues(Float64, Float64)
-cb_ener_CME = SavingCallback(save_ener_CME, saved_eners_CME)
-cbs_save_CME = CallbackSet(cb_ener_CME)
-
-
-method=CVODE_BDF(linear_solver = :GMRES)
-
-answ = CME_KSAT(rate_FMS_KSAT, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
-                seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CME, dt_s=2.5, 
-                abstol=abstol, reltol=reltol, method=method)
+    answ = CME_KSAT(rate_FMS_KSAT, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
+                    seed_g=seed, seed_l=seed, tspan=[t0, tlim], cbs_save=cbs_save_CME, dt_s=2.5, 
+                    abstol=abstol, reltol=reltol, method=method)
 
 
-fileener = "../Test/CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
-           string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
-           "_tmax_" * string(tlim) * "_seed_" * string(seed) * ".txt"
+    fileener = "../Test/CME_KSAT_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
+            string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
+            "_tmax_" * string(tlim) * "_seed_" * string(seed) * ".txt"
 
-print_ener(saved_eners_CME, fileener)
+    print_ener(saved_eners_CME, fileener)
+
+end

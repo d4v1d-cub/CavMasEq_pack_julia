@@ -201,6 +201,163 @@ function CDA_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 end
 
 
+function fder_CDA_custom(p_joint::Matrix{Float64}, pu_cond::Array{Float64, 3}, p_joint_u::Vector{Float64}, 
+    graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
+    rfunc::Function, rarg_cst, rarg_build::Function, ch_u::Vector{Int64})
+    
+
+    st = State_CDA(p_joint, pu_cond, p_joint_u)  
+    # A struct of type state is created just to pass it as an argument
+    # for the builder of the rates' function arguments
+    # This way, the user can choose what information to use inside the rate
+
+    rates_arg = rarg_build(graph, st, rarg_cst...)
+
+    dp = all_ders_CDA_KSAT(p_joint, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, ch_u)
+
+    return dp
+end
+
+
+function init_Euler_CDA(p_joint::Matrix{Float64}, pu_cond::Array{Float64, 3}, p_joint_u::Vector{Float64}, 
+    graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
+    rfunc::Function, rarg_cst, rarg_build::Function, ch_u::Vector{Int64}, dt0::Float64)
+
+    dp = fder_CDA_custom(p_joint, pu_cond, p_joint_u, graph, all_lp, all_lm, rfunc, rarg_cst, rarg_build,
+                         ch_u)
+    p_joint_1 = p_joint .+ dt0 * dp
+
+    return p_joint_1, dp
+end
+
+
+
+# Adams Moulton predictor-corrector method of the second order
+function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vector{Vector{Int64}}}, 
+    all_lm::Vector{Vector{Vector{Int64}}}, rfunc::Function, rarg_cst, rarg_build::Function, 
+    ch_u::Vector{Int64}, ch_u_cond::Matrix{Int64}, links::Matrix{Int8}, t0::Float64, dt0::Float64, tl::Float64, 
+    tol::Float64, efinal::Float64, dt_min::Float64, max_iter::Int64)
+
+    t_list = Vector{Float64}()
+    e_list = Vector{Float64}()
+    
+    p_cond = compute_p_cond(p_joint_0, graph, links)
+    pu_cond = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+    p_joint_u = get_pju_CDA(graph, p_joint_0, ch_u)
+
+    e = ener(p_joint_u)
+    push!(t_list, t0)
+    push!(e_list, e)
+
+    println(t0, "\t", e)
+
+    p_joint_1, dp_0 = init_Euler_CDA(p_joint_0, pu_cond, p_joint_u, graph, all_lp, all_lm, rfunc, 
+                                   rarg_cst, rarg_build, ch_u, dt0)
+
+    p_cond = compute_p_cond(p_joint_1, graph, links)
+    pu_cond = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+    p_joint_u = get_pju_CDA(graph, p_joint_1, ch_u)
+    t = t0 + dt0
+
+    e = ener(p_joint_u)
+    push!(t_list, t)
+    push!(e_list, e)
+
+    println(t, "\t", e)
+
+    p_joint_2 = zeros(Float64, size(p_joint_1))
+
+    dt1 = dt0
+
+    while t < tl
+        if e < efinal
+            break
+        end
+
+        dp_1 = fder_CDA_custom(p_joint_1, pu_cond, p_joint_u, graph, all_lp, all_lm, rfunc, rarg_cst, rarg_build,
+                               ch_u)
+
+        counter = 0
+        cond = true
+        while cond && counter < max_iter
+            dif_p = dt1 / dt0 * (dp_1 .- dp_0)
+
+            p_pred = p_joint_1 .+ dt1 * (dp_1 .+ 0.5 * dif_p) 
+
+            p_cond = compute_p_cond(p_pred, graph, links)
+            pu_cond = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+            p_joint_u = get_pju_CDA(graph, p_pred, ch_u)
+
+            dp_pred = fder_CDA_custom(p_pred, pu_cond, p_joint_u, graph, all_lp, all_lm, rfunc, rarg_cst, rarg_build,
+                                      ch_u)
+
+            p_joint_2 = p_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (dp_pred .- dp_1 .- dif_p)
+            
+            err = maximum(abs.(p_joint_2 .- p_pred) ./ p_joint_2)
+
+            if minimum(p_joint_2) < 0
+                dt1 /= 2
+                if dt1 < dt_min
+                    dt_min /= 2
+                end
+            elseif err < tol * 1.5
+                cond = false
+                dt1 = dt1 * sqrt(tol / err)
+            else
+                dt1 = dt1 * sqrt(tol / err)
+            end
+
+            counter += 1
+        end
+
+        if counter == max_iter
+            println("Maximum number of iterations excedeed inside ABM_CME")
+        end
+
+        p_joint_0 .= p_joint_1
+
+        p_joint_1 .= p_joint_2
+
+        p_cond = compute_p_cond(p_joint_1, graph, links)
+        pu_cond = comp_pu_KSAT(p_cond, graph, ch_u_cond)
+        p_joint_u = get_pju_CDA(graph, p_joint_1, ch_u)
+        t += dt1
+    
+        e = ener(p_joint_u)
+        push!(t_list, t)
+        push!(e_list, e)
+    
+        println(t, "\t", e)
+
+        dt0 = dt1
+    end
+
+    return t_list, e_list
+end
+
+
+# ODE integration by hand
+function CDA_KSAT_custom(ratefunc::Function, rargs_cst, rarg_build::Function, 
+    graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
+    method::Function, eth::Float64, tol::Float64, dt0::Float64, dt_min::Float64, 
+    max_iter::Int64)
+
+
+    efinal = eth * graph.N
+    all_lp, all_lm = all_lpm(graph, links)
+    ch_u, ch_u_cond = unsat_ch(graph, links)
+    p_joint = init_p_joint(graph, p0)
+
+    t0 = tspan[1]
+    tl = tspan[2]
+
+
+    t_list, e_list = method(p_joint, graph, all_lp, all_lm, ratefunc, rargs_cst, rarg_build, 
+                            ch_u, ch_u_cond, links, t0, dt0, tl, tol, efinal, dt_min, max_iter)
+    return t_list, e_list
+end
+
+
 # Decorator for the function integrates the CDA's equations for a specific algorithm (given by ratefunc)
 # and some boolean formula (given by graph and links)
 function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
@@ -209,7 +366,8 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=VCABM(), 
                   eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1, 
-                  abstol::Float64=1e-6, reltol::Float64=1e-3)
+                  abstol::Float64=1e-6, reltol::Float64=1e-3, custom=false,
+                  dt0::Float64=0.01, dt_min::Float64=1e-7, max_iter::Int64=100)
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -219,8 +377,14 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
         if length(links) == 0
             links = gen_links(graph, seed_l)
         end
-        return CDA_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth, cbs_save, dt_s, abstol, reltol)
+
+        if custom
+            return CDA_KSAT_custom(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0, method, eth, 
+                                   reltol, dt0, dt_min, max_iter)
+        else
+            return CDA_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
+                                 method, eth, cbs_save, dt_s, abstol, reltol)
+        end
     else
         throw("In CDA_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  

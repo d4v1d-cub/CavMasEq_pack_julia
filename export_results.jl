@@ -7,3 +7,12 @@ function print_ener(saved_e::SavedValues, filename::String)
     end
     close(fout)
 end
+
+
+function print_ener(t_list::Vector{Float64}, e_list::Vector{Float64}, filename::String)
+    fout = open(filename, "w")
+    for i in eachindex(t_list)
+        write(fout, string(t_list[i]) * "\t" * string(e_list[i]) * "\n")
+    end
+    close(fout)
+end

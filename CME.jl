@@ -278,6 +278,172 @@ function CME_KSAT_base(ratefunc::Function, rargs_cst, rarg_build::Function,
 end
 
 
+function fder_CME_custom(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu_cond::Array{Float64, 3}, 
+    p_joint_u::Vector{Float64}, graph::HGraph, ch_u_cond::Matrix{Int64}, all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
+    rfunc::Function, rarg_cst, rarg_build::Function, links::Matrix{Int8})
+
+    st = State_CME(p_cav, probi, pu_cond, p_joint_u)  
+    # A struct of type state is created just to pass it as an argument
+    # for the builder of the rates' function arguments
+    # This way, the user can choose what information to use inside the rate
+
+    rates_arg = rarg_build(graph, st, rarg_cst...)
+
+    return all_ders_CME_KSAT(p_cav, probi, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, links, 
+                             ch_u_cond)
+end
+
+
+# Euler step to intialize Adams Moulton method of the 2nd order
+function init_Euler_CME(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu_cond::Array{Float64, 3}, 
+    p_joint_u::Vector{Float64}, graph::HGraph, ch_u_cond::Matrix{Int64}, 
+    all_lp::Vector{Vector{Vector{Int64}}}, all_lm::Vector{Vector{Vector{Int64}}}, 
+    rfunc::Function, rarg_cst, rarg_build::Function, links::Matrix{Int8}, dt0::Float64)
+
+
+    d_pc, d_pi = fder_CME_custom(p_cav, probi, pu_cond, p_joint_u, graph, ch_u_cond, all_lp, all_lm, 
+                             rfunc, rarg_cst, rarg_build, links)
+
+    p_cav_1 = p_cav .+ dt0 * d_pc
+    probi_1 = probi .+ dt0 * d_pi
+
+    return p_cav_1, probi_1, d_pc, d_pi
+end
+
+
+# Adams Moulton predictor-corrector method of the second order
+function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HGraph, 
+    ch_u::Vector{Int64}, ch_u_cond::Matrix{Int64}, all_lp::Vector{Vector{Vector{Int64}}}, 
+    all_lm::Vector{Vector{Vector{Int64}}}, rfunc::Function, rarg_cst, rarg_build::Function, 
+    links::Matrix{Int8}, t0::Float64, dt0::Float64, tl::Float64, tol::Float64, efinal::Float64, 
+    dt_min::Float64, max_iter::Int64)
+
+    t_list = Vector{Float64}()
+    e_list = Vector{Float64}()
+    
+    pu_cond = comp_pu_KSAT(p_cav_0, graph, ch_u_cond)
+    p_joint_u = get_pju_CME(graph, probi_0, pu_cond, ch_u)
+
+    e = ener(p_joint_u)
+    push!(t_list, t0)
+    push!(e_list, e)
+
+    println(t0, "\t", e)
+
+    p_cav_1, probi_1, d_pc_0, d_pi_0 = init_Euler_CME(p_cav_0, probi_0, pu_cond, p_joint_u, graph, ch_u_cond, 
+                                                  all_lp, all_lm, rfunc, rarg_cst, rarg_build, links, dt0)
+
+    pu_cond = comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
+    p_joint_u = get_pju_CME(graph, probi_1, pu_cond, ch_u)
+    t = t0 + dt0
+
+    e = ener(p_joint_u)
+    push!(t_list, t)
+    push!(e_list, e)
+
+    println(t, "\t", e)
+
+    p_cav_2 = zeros(Float64, size(p_cav_1))
+    probi_2 = zeros(Float64, size(probi_1))
+
+    dt1 = dt0
+
+    while t < tl
+        if e < efinal
+            break
+        end
+
+        d_pc_1, d_pi_1 = fder_CME_custom(p_cav_1, probi_1, pu_cond, p_joint_u, graph, ch_u_cond, all_lp, 
+                                     all_lm, rfunc, rarg_cst, rarg_build, links)
+
+        cond = true
+        counter = 0
+        while cond && counter < max_iter
+            dif_pc = dt1 / dt0 * (d_pc_1 .- d_pc_0)
+            dif_pi = dt1 / dt0 * (d_pi_1 .- d_pi_0)
+
+            p_cav_pred = p_cav_1 .+ dt1 * (d_pc_1 .+ 0.5 * dif_pc)
+            probi_pred = probi_1 .+ dt1 * (d_pi_1 .+ 0.5 * dif_pi) 
+
+            pu_cond = comp_pu_KSAT(p_cav_pred, graph, ch_u_cond)
+            p_joint_u = get_pju_CME(graph, probi_pred, pu_cond, ch_u)
+
+            d_pc_pred, d_pi_pred = fder_CME_custom(p_cav_pred, probi_pred, pu_cond, p_joint_u, graph, 
+                                               ch_u_cond, all_lp, all_lm, rfunc, rarg_cst, rarg_build, 
+                                               links)
+
+            p_cav_2 = p_cav_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pc_pred .- d_pc_1 .- dif_pc)
+            probi_2 = probi_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pi_pred .- d_pi_1 .- dif_pi)
+            
+            err_cav = maximum(abs.(p_cav_2 .- p_cav_pred) ./ p_cav_2)
+            err_pi = maximum(abs.(probi_2 .- probi_pred) ./ probi_2)
+            err = max(err_cav, err_pi)
+
+            if minimum(p_cav_2) < 0 || minimum(probi_2) < 0
+                dt1 /= 2
+                if dt1 < dt_min
+                    dt_min /= 2
+                end
+            elseif err < tol * 1.5
+                cond = false
+                dt1 = max(dt1 * sqrt(tol / err), dt_min)
+            else
+                dt1 = max(dt1 * sqrt(tol / err), dt_min)
+            end
+
+            counter += 1
+        end
+
+        if counter == max_iter
+            println("Maximum number of iterations excedeed inside ABM_CME")
+        end
+
+        p_cav_0 .= p_cav_1
+        probi_0 .= probi_1
+
+        p_cav_1 .= p_cav_2
+        probi_1 .= probi_2
+
+        pu_cond = comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
+        p_joint_u = get_pju_CME(graph, probi_1, pu_cond, ch_u)
+        t += dt1
+    
+        e = ener(p_joint_u)
+        push!(t_list, t)
+        push!(e_list, e)
+    
+        println(t, "\t", e)
+
+        dt0 = dt1
+    end
+
+    return t_list, e_list
+end
+
+
+# ODE integration by hand
+function CME_KSAT_custom(ratefunc::Function, rargs_cst, rarg_build::Function, 
+    graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
+    method::Function, eth::Float64, tol::Float64, dt0::Float64, dt_min::Float64, 
+    max_iter::Int64)
+
+
+    efinal = eth * graph.N
+    all_lp, all_lm = all_lpm(graph, links)
+    ch_u, ch_u_cond = unsat_ch(graph, links)
+    p_cav = init_p_cav(graph, p0)
+    probi = fill(p0, graph.N)
+
+    t0 = tspan[1]
+    tl = tspan[2]
+
+
+    t_list, e_list = method(p_cav, probi, graph, ch_u, ch_u_cond, all_lp, all_lm, ratefunc, rargs_cst, 
+                            rarg_build, links, t0, dt0, tl, tol, efinal, dt_min, max_iter)
+    return t_list, e_list
+end
+
+
 # Decorator for the function integrates the CME's equations for a specific algorithm (given by ratefunc)
 # and some boolean formula (given by graph and links)
 function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
@@ -286,7 +452,8 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   links::Matrix{Int8}=Matrix{Int8}(undef, 0, 0), seed_l::Int64=rand(1:typemax(Int64)), 
                   tspan::Vector{Float64}=[0.0, 1.0], 
                   p0::Float64=0.5, method=VCABM(), eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
-                  dt_s::Float64=0.1, abstol::Float64=1e-6, reltol::Float64=1e-3)
+                  dt_s::Float64=0.1, abstol::Float64=1e-6, reltol::Float64=1e-3, custom=false,
+                  dt0::Float64=0.01, dt_min::Float64=1e-7, max_iter=100)
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -296,8 +463,16 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
         if length(links) == 0
             links = gen_links(graph, seed_l)
         end
-        return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
-        method, eth, cbs_save, dt_s, abstol, reltol)
+
+        if custom
+            return CME_KSAT_custom(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0, method, eth, 
+                                   reltol, dt0, dt_min, max_iter)
+        else
+            return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
+            method, eth, cbs_save, dt_s, abstol, reltol)
+        end
+
+        
     else
         throw("In CME_KSAT function: The user should provide either a graph::HGraph or valid values for N, K and alpha")
     end  
