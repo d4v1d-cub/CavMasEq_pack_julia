@@ -110,6 +110,7 @@ function all_ders_CDA_KSAT(p_joint::Matrix{Float64}, pu::Array{Float64, 3},
     #                      ch_u)
     # end
 
+    GC.gc()
     return ders
 end
 
@@ -134,6 +135,7 @@ function fder_KSAT_CDA(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
 
     dp = all_ders_CDA_KSAT(p_joint, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, ch_u)
 
+    GC.gc()
     du .= reshape(dp, length(du))
 end
 
@@ -308,6 +310,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
             end
 
             counter += 1
+            GC.gc()
         end
 
         if counter == max_iter

@@ -133,7 +133,7 @@ function all_ders_he_KSAT(p_cav::Array{Float64, 4}, pu::Array{Float64, 3}, he::I
                 all_sums[node, :, :, :] .= inner_sums
             end
         end
-    end 
+    end
 end
 
 
@@ -147,7 +147,6 @@ function all_ders_node_KSAT(probi::Float64, pu::Array{Float64, 3}, node::Int64, 
     else
         return 0
     end
-
 end
 
 
@@ -175,6 +174,7 @@ function all_ders_CME_KSAT(p_cav::Array{Float64, 4}, probi::Vector{Float64}, pu:
     d_node[node] = all_ders_node_KSAT(probi[node], pu, node, graph, links, all_sums)
     end
 
+    GC.gc()
     return d_pcav, d_node
 end
 
@@ -200,6 +200,7 @@ function fder_KSAT_CME(du::Vector{Float64}, u::Vector{Float64}, p, t::Float64)
     d_pc, d_pi = all_ders_CME_KSAT(p_cav, probi, pu_cond, graph, all_lp, all_lm, rfunc, rates_arg, links, 
                                    ch_u_cond)
 
+    GC.gc()
     du .= vcat(reshape(d_pc, len_cav), d_pi)
 end
 
@@ -333,8 +334,8 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
     p_cav_1, probi_1, d_pc_0, d_pi_0 = init_Euler_CME(p_cav_0, probi_0, pu_cond, p_joint_u, graph, ch_u_cond, 
                                                   all_lp, all_lm, rfunc, rarg_cst, rarg_build, links, dt0)
 
-    pu_cond = comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
-    p_joint_u = get_pju_CME(graph, probi_1, pu_cond, ch_u)
+    pu_cond .= comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
+    p_joint_u .= get_pju_CME(graph, probi_1, pu_cond, ch_u)
     t = t0 + dt0
 
     e = ener(p_joint_u)
@@ -345,6 +346,14 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
 
     p_cav_2 = zeros(Float64, size(p_cav_1))
     probi_2 = zeros(Float64, size(probi_1))
+    p_cav_pred = zeros(Float64, size(p_cav_1))
+    probi_pred = zeros(Float64, size(probi_1))
+    d_pc_1 = zeros(Float64, size(d_pc_0))
+    d_pi_1 = zeros(Float64, size(d_pi_0))
+    d_pc_pred = zeros(Float64, size(d_pc_0))
+    d_pi_pred = zeros(Float64, size(d_pi_0))
+    dif_pc = zeros(Float64, size(d_pc_0))
+    dif_pi = zeros(Float64, size(d_pi_0))
 
     dt1 = dt0
 
@@ -359,21 +368,21 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
         cond = true
         counter = 0
         while cond && counter < max_iter
-            dif_pc = dt1 / dt0 * (d_pc_1 .- d_pc_0)
-            dif_pi = dt1 / dt0 * (d_pi_1 .- d_pi_0)
+            dif_pc .= dt1 / dt0 * (d_pc_1 .- d_pc_0)
+            dif_pi .= dt1 / dt0 * (d_pi_1 .- d_pi_0)
 
-            p_cav_pred = p_cav_1 .+ dt1 * (d_pc_1 .+ 0.5 * dif_pc)
-            probi_pred = probi_1 .+ dt1 * (d_pi_1 .+ 0.5 * dif_pi) 
+            p_cav_pred .= p_cav_1 .+ dt1 * (d_pc_1 .+ 0.5 * dif_pc)
+            probi_pred .= probi_1 .+ dt1 * (d_pi_1 .+ 0.5 * dif_pi) 
 
-            pu_cond = comp_pu_KSAT(p_cav_pred, graph, ch_u_cond)
-            p_joint_u = get_pju_CME(graph, probi_pred, pu_cond, ch_u)
+            pu_cond .= comp_pu_KSAT(p_cav_pred, graph, ch_u_cond)
+            p_joint_u .= get_pju_CME(graph, probi_pred, pu_cond, ch_u)
 
             d_pc_pred, d_pi_pred = fder_CME_custom(p_cav_pred, probi_pred, pu_cond, p_joint_u, graph, 
                                                ch_u_cond, all_lp, all_lm, rfunc, rarg_cst, rarg_build, 
                                                links)
 
-            p_cav_2 = p_cav_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pc_pred .- d_pc_1 .- dif_pc)
-            probi_2 = probi_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pi_pred .- d_pi_1 .- dif_pi)
+            p_cav_2 .= p_cav_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pc_pred .- d_pc_1 .- dif_pc)
+            probi_2 .= probi_pred .+ dt1 * (0.5 - dt1 / 6 / (dt1 + dt0)) * (d_pi_pred .- d_pi_1 .- dif_pi)
             
             err_cav = maximum(abs.(p_cav_2 .- p_cav_pred) ./ p_cav_2)
             err_pi = maximum(abs.(probi_2 .- probi_pred) ./ probi_2)
@@ -392,6 +401,7 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
             end
 
             counter += 1
+            GC.gc()
         end
 
         if counter == max_iter
@@ -404,8 +414,8 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
         p_cav_1 .= p_cav_2
         probi_1 .= probi_2
 
-        pu_cond = comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
-        p_joint_u = get_pju_CME(graph, probi_1, pu_cond, ch_u)
+        pu_cond .= comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
+        p_joint_u .= get_pju_CME(graph, probi_1, pu_cond, ch_u)
         t += dt1
     
         e = ener(p_joint_u)
