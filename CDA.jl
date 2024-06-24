@@ -300,7 +300,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
                 if dt1 < dt_min
                     dt_min /= 2
                 end
-            elseif err < tol * 1.5
+            elseif tol * 0.9 < err < tol * 1.001
                 cond = false
                 dt1 = dt1 * sqrt(tol / err)
             else
@@ -367,7 +367,7 @@ function CDA_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   tspan::Vector{Float64}=[0.0, 1.0], p0::Float64=0.5, method=VCABM(), 
                   eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(), dt_s::Float64=0.1, 
                   abstol::Float64=1e-6, reltol::Float64=1e-3, custom=false,
-                  dt0::Float64=0.01, dt_min::Float64=1e-7, max_iter::Int64=100)
+                  dt0::Float64=0.1, dt_min::Float64=1e-7, max_iter::Int64=100)
     if N > 0
         if graph.N == 0
             c = K * alpha

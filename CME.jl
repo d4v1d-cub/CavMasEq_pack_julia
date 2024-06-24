@@ -384,7 +384,7 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
                 if dt1 < dt_min
                     dt_min /= 2
                 end
-            elseif err < tol * 1.5
+            elseif tol * 0.9 < err < tol * 1.001
                 cond = false
                 dt1 = max(dt1 * sqrt(tol / err), dt_min)
             else
