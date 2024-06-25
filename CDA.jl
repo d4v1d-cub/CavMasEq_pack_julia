@@ -302,7 +302,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
                 if dt1 < dt_min
                     dt_min /= 2
                 end
-            elseif tol * 0.9 < err < tol * 1.001
+            elseif err < tol * 1.1
                 cond = false
                 dt1 = dt1 * sqrt(tol / err)
             else
