@@ -22,15 +22,14 @@ custom = parse(Bool, ARGS[10])
 if custom
     method = AM2_CME
 
-    t_list, e_list = CME_KSAT(rate_FMS_KSAT, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
-                              seed_g=seed, seed_l=seed, tspan=[t0, tlim], reltol=reltol, method=method, 
-                              custom=true)
-
     fileener = "../Test/CME_KSAT_custom_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
     string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
     "_tmax_" * string(tlim) * "_seed_" * string(seed) * ".txt"
 
-    print_ener(t_list, e_list, fileener)
+    t_list, e_list = CME_KSAT(rate_FMS_KSAT, rargs, build_args_rate_FMS, N=N, K=K, alpha=alpha, 
+                              seed_g=seed, seed_l=seed, tspan=[t0, tlim], reltol=reltol, method=method, 
+                              custom=true, fileener=fileener)
+                              
 else
 
     saved_eners_CME = SavedValues(Float64, Float64)
