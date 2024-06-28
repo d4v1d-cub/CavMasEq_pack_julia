@@ -312,10 +312,10 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
                 end
             elseif err < tol * 1.1
                 cond = false
-                println("step dt=", dt, "  accepted")
+                println("step dt=", dt1, "  accepted")
                 dt1 = dt1 * sqrt(tol / err)
             else
-                println("step dt=", dt, "  rejected")
+                println("step dt=", dt1, "  rejected")
                 println("iter=", counter)
                 dt1 = dt1 * sqrt(tol / err)
             end

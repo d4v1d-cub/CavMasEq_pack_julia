@@ -403,10 +403,10 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
                 end
             elseif err < tol * 1.1
                 cond = false
-                println("step dt=", dt, "  accepted")
+                println("step dt=", dt1, "  accepted")
                 dt1 = max(dt1 * sqrt(tol / err), dt_min)
             else
-                println("step dt=", dt, "  rejected")
+                println("step dt=", dt1, "  rejected")
                 println("iter=", counter)
                 dt1 = max(dt1 * sqrt(tol / err), dt_min)
             end
