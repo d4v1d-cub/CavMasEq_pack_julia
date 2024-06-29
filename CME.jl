@@ -316,8 +316,8 @@ end
 function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HGraph, 
     ch_u::Vector{Int64}, ch_u_cond::Matrix{Int64}, all_lp::Vector{Vector{Vector{Int64}}}, 
     all_lm::Vector{Vector{Vector{Int64}}}, rfunc::Function, rarg_cst, rarg_build::Function, 
-    links::Matrix{Int8}, t0::Float64, dt0::Float64, tl::Float64, tol::Float64, efinal::Float64, 
-    dt_min::Float64, max_iter::Int64, fileener::String)
+    links::Matrix{Int8}, t0::Float64, dt0::Float64, tl::Float64, efinal::Float64, fileener::String,
+    tol::Float64=1e-2, dt_min::Float64=1e-7, max_iter::Int64=100)
 
     fe = open(fileener, "w")
 
@@ -444,11 +444,123 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
 end
 
 
+function RK2_CME(p_cav::Array{Float64, 4}, probi::Vector{Float64}, graph::HGraph, 
+    ch_u::Vector{Int64}, ch_u_cond::Matrix{Int64}, all_lp::Vector{Vector{Vector{Int64}}}, 
+    all_lm::Vector{Vector{Vector{Int64}}}, rfunc::Function, rarg_cst, rarg_build::Function, 
+    links::Matrix{Int8}, t0::Float64, dt0::Float64, tl::Float64, efinal::Float64, fileener::String; 
+    tol::Float64=1e-2, dt_min::Float64=1e-7)
+
+    fe = open(fileener, "w")
+
+    t_list = Vector{Float64}()
+    e_list = Vector{Float64}()
+    
+    pu_cond = comp_pu_KSAT(p_cav, graph, ch_u_cond)
+    p_joint_u = get_pju_CME(graph, probi, pu_cond, ch_u)
+
+    e = ener(p_joint_u)
+    push!(t_list, t0)
+    push!(e_list, e)
+
+    println("t=", t0)
+    write(fe, string(t0) * "\t" * string(e) * "\n")
+
+    probi_1 = zeros(Float64, size(probi))
+    p_cav_1 = zeros(Float64, size(p_cav))
+    k1 = zeros(Float64, size(probi))
+    k2 = zeros(Float64, size(probi))
+    k1c = zeros(Float64, size(p_cav))
+    k2c = zeros(Float64, size(p_cav))
+    d_pi = zeros(Float64, size(probi))
+    d_pc = zeros(Float64, size(p_cav))
+    
+    dt1 = dt0
+    t = t0
+
+    while t < tl
+        if e < efinal
+            println("Final energy reached")
+            break
+        end
+
+        pu_cond .= comp_pu_KSAT(p_cav, graph, ch_u_cond)
+        p_joint_u .= get_pju_CME(graph, probi, pu_cond, ch_u)
+
+        d_pc, d_pi = fder_CME_custom(p_cav, probi, pu_cond, p_joint_u, graph, ch_u_cond, all_lp, 
+                                     all_lm, rfunc, rarg_cst, rarg_build, links)
+
+        k1 .= dt1 * d_pi
+        probi_1 .= (probi .+ k1)
+        k1c .= dt1 * d_pc
+        p_cav_1 .= (p_cav .+ k1c)
+
+        pu_cond .= comp_pu_KSAT(p_cav_1, graph, ch_u_cond)
+        p_joint_u .= get_pju_CME(graph, probi_1, pu_cond, ch_u)
+
+        d_pc, d_pi = fder_CME_custom(p_cav_1, probi_1, pu_cond, p_joint_u, graph, ch_u_cond, all_lp, 
+                                     all_lm, rfunc, rarg_cst, rarg_build, links)
+
+        k2 .= dt1 * d_pi
+        k2c .= dt1 * d_pc
+
+        valid = (minimum(probi .+ (k1 .+ k2) / 2) >= 0 && minimum(p_cav .+ (k1c .+ k2c) / 2) >= 0) 
+
+        if !valid
+            println("Some probabilities would be negative if dt=", dt1, " is taken")
+            dt1 /= 2
+            println("step divided by half")
+            if dt1 < dt_min
+                dt_min /= 2
+                println("dt_min also halfed")
+            end
+        else
+            error = max(maximum(abs.(k1 .- k2)), maximum(abs.(k1c .- k2c)))
+            if error < 2 * tol
+                println("step dt=", dt1, "  accepted")
+                t += dt1
+                probi .= (probi .+ (k1 .+ k2) / 2)
+                p_cav .= (p_cav .+ (k1c .+ k2c) / 2)
+
+                pu_cond .= comp_pu_KSAT(p_cav, graph, ch_u_cond)
+                p_joint_u .= get_pju_CME(graph, probi, pu_cond, ch_u)
+
+                e = ener(p_joint_u)
+                push!(t_list, t)
+                push!(e_list, e)
+
+                println("t=", t)
+                write(fe, string(t) * "\t" * string(e) * "\n")
+
+                
+            else
+                println("step dt=", dt1, "  rejected  new step will be attempted")
+                println("error=", error)
+            end
+
+            dt1 = 4 * dt1 * sqrt(2 * tol / error) / 5
+
+            if dt1 > graph.M
+                dt1 = M
+            elseif dt1 < dt_min
+                dt1 = dt_min
+            end
+            
+            println("Recommended step is dt=", dt1)
+        end
+        GC.gc()
+    end
+
+    close(fe)
+    return t_list, e_list
+end
+
+
+
 # ODE integration by hand
 function CME_KSAT_custom(ratefunc::Function, rargs_cst, rarg_build::Function, 
     graph::HGraph, links::Matrix{Int8}, tspan::Vector{Float64}, p0::Float64, 
     method::Function, eth::Float64, tol::Float64, dt0::Float64, dt_min::Float64, 
-    max_iter::Int64, fileener::String)
+    fileener::String)
 
 
     efinal = eth * graph.N
@@ -462,7 +574,7 @@ function CME_KSAT_custom(ratefunc::Function, rargs_cst, rarg_build::Function,
 
 
     t_list, e_list = method(p_cav, probi, graph, ch_u, ch_u_cond, all_lp, all_lm, ratefunc, rargs_cst, 
-                            rarg_build, links, t0, dt0, tl, tol, efinal, dt_min, max_iter, fileener)
+                            rarg_build, links, t0, dt0, tl, efinal, fileener, tol=tol, dt_min=dt_min)
     return t_list, e_list
 end
 
@@ -476,7 +588,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
                   tspan::Vector{Float64}=[0.0, 1.0], 
                   p0::Float64=0.5, method=VCABM(), eth::Float64=1e-6, cbs_save::CallbackSet=CallbackSet(),
                   dt_s::Float64=0.1, abstol::Float64=1e-6, reltol::Float64=1e-3, custom=false,
-                  dt0::Float64=0.01, dt_min::Float64=1e-7, max_iter=100, fileener::String="ener.txt")
+                  dt0::Float64=0.01, dt_min::Float64=1e-7, fileener::String="ener.txt")
     if N > 0
         if graph.N == 0
             c = K * alpha
@@ -489,7 +601,7 @@ function CME_KSAT(ratefunc::Function, rargs_cst, rarg_build::Function;
 
         if custom
             return CME_KSAT_custom(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0, method, eth, 
-                                   reltol, dt0, dt_min, max_iter, fileener)
+                                   reltol, dt0, dt_min, fileener)
         else
             return CME_KSAT_base(ratefunc, rargs_cst, rarg_build, graph, links, tspan, p0,
             method, eth, cbs_save, dt_s, abstol, reltol)

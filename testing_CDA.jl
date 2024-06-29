@@ -20,7 +20,7 @@ reltol = parse(Float64, ARGS[9])
 custom = parse(Bool, ARGS[10])
 
 if custom
-    method=AM2_CDA
+    method=RK2_CDA
 
     fileener = "../Test/CDA_KSAT_custom_" * alg_str * "_K_" * string(K) * "_N_" * string(N) * "_alpha_" * 
                string(alpha) * "_p0_" * string(p0) * "_eta_" * string(eta) * "_t0_" * string(t0) * 
