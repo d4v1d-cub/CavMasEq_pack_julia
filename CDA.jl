@@ -255,6 +255,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
 
     println("t=", t0)
     write(fe, string(t0) * "\t" * string(e) * "\n")
+    flush(fe)
 
     p_joint_1, dp_0 = init_Euler_CDA(p_joint_0, pu_cond, p_joint_u, graph, all_lp, all_lm, rfunc, 
                                    rarg_cst, rarg_build, ch_u, dt0)
@@ -270,6 +271,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
 
     println("t=", t)
     write(fe, string(t) * "\t" * string(e) * "\n")
+    flush(fe)
 
     p_joint_2 = zeros(Float64, size(p_joint_1))
 
@@ -346,6 +348,7 @@ function AM2_CDA(p_joint_0::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vecto
     
         println("t=", t)
         write(fe, string(t) * "\t" * string(e) * "\n")
+        flush(fe)
 
         dt0 = dt1
     end
@@ -376,6 +379,7 @@ function RK2_CDA(p_joint::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vector{
 
     println("t=", t0)
     write(fe, string(t0) * "\t" * string(e) * "\n")
+    flush(fe)
 
     k1 = zeros(Float64, size(p_joint))
     k2 = zeros(Float64, size(p_joint))
@@ -437,7 +441,7 @@ function RK2_CDA(p_joint::Matrix{Float64}, graph::HGraph, all_lp::Vector{Vector{
 
                 println("t=", t)
                 write(fe, string(t) * "\t" * string(e) * "\n")
-
+                flush(fe)
                 
             else
                 println("step dt=", dt1, "  rejected  new step will be attempted")

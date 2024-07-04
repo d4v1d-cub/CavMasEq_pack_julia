@@ -333,6 +333,7 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
 
     println("t=", t0)
     write(fe, string(t0) * "\t" * string(e) * "\n")
+    flush(fe)
 
     p_cav_1, probi_1, d_pc_0, d_pi_0 = init_Euler_CME(p_cav_0, probi_0, pu_cond, p_joint_u, graph, ch_u_cond, 
                                                   all_lp, all_lm, rfunc, rarg_cst, rarg_build, links, dt0)
@@ -347,6 +348,7 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
 
     println("t=", t)
     write(fe, string(t) * "\t" * string(e) * "\n")
+    flush(fe)
 
     p_cav_2 = zeros(Float64, size(p_cav_1))
     probi_2 = zeros(Float64, size(probi_1))
@@ -435,6 +437,7 @@ function AM2_CME(p_cav_0::Array{Float64, 4}, probi_0::Vector{Float64}, graph::HG
     
         println("t=", t)
         write(fe, string(t) * "\t" * string(e) * "\n")
+        flush(fe)
 
         dt0 = dt1
     end
@@ -464,6 +467,7 @@ function RK2_CME(p_cav::Array{Float64, 4}, probi::Vector{Float64}, graph::HGraph
 
     println("t=", t0)
     write(fe, string(t0) * "\t" * string(e) * "\n")
+    flush(fe)
 
     probi_1 = zeros(Float64, size(probi))
     p_cav_1 = zeros(Float64, size(p_cav))
@@ -530,7 +534,7 @@ function RK2_CME(p_cav::Array{Float64, 4}, probi::Vector{Float64}, graph::HGraph
 
                 println("t=", t)
                 write(fe, string(t) * "\t" * string(e) * "\n")
-
+                flush(fe)
                 
             else
                 println("step dt=", dt1, "  rejected  new step will be attempted")
